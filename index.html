@@ -268,6 +268,10 @@ body{background:var(--bg);color:var(--t);font-family:var(--sans);font-size:14px;
     <div class="live-ind" id="live-ind"><span class="live-ind-dot"></span><span id="live-ind-txt">OneDrive Live</span></div>
     <div class="pill"><span class="dot sim" id="cdot"></span><span id="ctxt">Awaiting data</span></div>
     <div class="pill" id="auth-pill" style="display:none"><span style="color:var(--g)">🔓 Admin</span></div>
+    <div style="border-left:1px solid var(--b2);padding-left:10px;text-align:right;">
+      <div style="font-size:10px;font-family:var(--mono);color:var(--t2);">Created by: <strong style="color:var(--t)">ALISHA GOEL</strong></div>
+      <div style="font-size:10px;font-family:var(--mono);color:var(--t3);">Emp No: <strong style="color:var(--t2)">105194</strong></div>
+    </div>
   </div>
 </div>
 
@@ -301,6 +305,7 @@ body{background:var(--bg);color:var(--t);font-family:var(--sans);font-size:14px;
   <button class="tab" data-tab="trend" onclick="sw('trend',this)">15-min Trend</button>
   <button class="tab" data-tab="tags" onclick="sw('tags',this)">PI Tags</button>
   <button class="tab" data-tab="monthly" onclick="sw('monthly',this)">📅 Monthly</button>
+  <button class="tab" data-tab="water" onclick="sw('water',this)">💧 Water</button>
   <button class="tab" data-tab="yearly" onclick="sw('yearly',this)">📆 Yearly</button>
   <button class="tab admin-tab" data-tab="admin" onclick="sw('admin',this)">🔐 Admin</button>
 </div>
@@ -637,15 +642,15 @@ body{background:var(--bg);color:var(--t);font-family:var(--sans);font-size:14px;
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
       <div>
         <div class="ct" style="color:#2563eb">📅 Monthly Analysis</div>
-        <div class="cs">Upload monthly Excel file (all 15-min intervals for the month)</div>
+        <div class="cs">Data uploaded by Admin · Go to 🔐 Admin tab to upload Excel</div>
       </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <input type="file" id="monthly-fi" accept=".xlsx,.xls" onchange="handleMonthlyFile(event)" style="display:none"/>
-        <button class="btn btn-g" onclick="document.getElementById('monthly-fi').click()">⬆ Load Monthly Excel</button>
-        <span id="monthly-loaded" style="font-size:11px;font-family:var(--mono);color:#2e9e5b;align-self:center;"></span>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span style="font-size:11px;font-family:var(--mono);color:#8a94a6;">🔒 Upload restricted to Admin</span>
+        <span id="monthly-loaded" style="font-size:11px;font-family:var(--mono);color:#2e9e5b;"></span>
       </div>
     </div>
   </div>
+  <input type="file" id="monthly-fi" accept=".xlsx,.xls" onchange="handleMonthlyFile(event)" style="display:none"/>
 
   <!-- Parameter selector -->
   <div class="utabs" style="margin-top:12px;" id="monthly-param-tabs">
@@ -686,6 +691,98 @@ body{background:var(--bg);color:var(--t);font-family:var(--sans);font-size:14px;
   </div>
 </div>
 
+<!-- WATER CONSUMPTION -->
+<div id="tab-water" class="panel">
+  <!-- Upload section -->
+  <div class="cc" style="background:#f0f9ff;border:1.5px solid #bae6fd;">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+      <div>
+        <div class="ct" style="color:#0891b2">💧 Specific Water Consumption — Monthly Analysis</div>
+        <div class="cs">Upload monthly water consumption Excel · Coal Station · Gas Station · Total</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <input type="file" id="water-fi" accept=".xlsx,.xls,.csv" onchange="handleWaterFile(event)" style="display:none"/>
+        <span style="font-size:11px;font-family:var(--mono);color:#8a94a6;">🔒 Upload restricted to Admin</span>
+        <span id="water-loaded" style="font-size:11px;font-family:var(--mono);color:#2e9e5b;"></span>
+      </div>
+    </div>
+    <!-- Excel format guide -->
+    <div style="margin-top:12px;background:#fff;border:1px solid #bae6fd;border-radius:8px;padding:10px 14px;font-size:11px;font-family:var(--mono);color:#4a5568;line-height:2;">
+      <strong style="color:#0891b2">Expected Excel format (any sheet):</strong><br/>
+      Row 1: Headers &nbsp;|&nbsp;
+      Col A: Month (Apr, May... or date) &nbsp;|&nbsp;
+      Col B: Coal Station SWC &nbsp;|&nbsp;
+      Col C: Gas Station SWC &nbsp;|&nbsp;
+      Col D: Total SWC<br/>
+      <strong>Units:</strong> m³/MWh &nbsp;·&nbsp; Financial year Apr–Mar &nbsp;·&nbsp; Up to 12 rows
+    </div>
+  </div>
+
+  <!-- SWC Trend Chart -->
+  <div class="cc">
+    <div class="ch">
+      <div>
+        <div class="ct">Specific Water Consumption — Monthly Trend</div>
+        <div class="cs" id="water-period">Financial Year · m³/MWh</div>
+      </div>
+      <div class="leg">
+        <span class="li"><span class="ls" style="background:#0891b2"></span>Coal Station</span>
+        <span class="li"><span class="ls" style="background:#7c3aed"></span>Gas Station</span>
+        <span class="li"><span class="ls" style="background:#2e9e5b"></span>Total</span>
+      </div>
+    </div>
+    <div style="position:relative;height:280px"><canvas id="waterTrendC"></canvas></div>
+  </div>
+
+  <!-- Bar + Stats -->
+  <div class="two">
+    <div class="cc" style="margin-bottom:0">
+      <div class="ct" style="margin-bottom:10px">Monthly Comparison — Coal vs Gas vs Total</div>
+      <div style="position:relative;height:220px"><canvas id="waterBarC"></canvas></div>
+    </div>
+    <div class="cc" style="margin-bottom:0">
+      <div class="ct" style="margin-bottom:10px">Statistics Summary</div>
+      <table class="tbl" id="waterStatTbl"></table>
+    </div>
+  </div>
+
+  <!-- Cumulative YTD -->
+  <div class="cc">
+    <div class="ch">
+      <div><div class="ct">Cumulative Water Consumption — Year to Date</div>
+      <div class="cs">Running total across financial year months uploaded</div></div>
+    </div>
+    <div style="position:relative;height:220px"><canvas id="waterYTDC"></canvas></div>
+  </div>
+
+  <!-- Rainwater Harvesting -->
+  <div class="cc" style="border-top:2px solid #bae6fd;margin-top:4px;">
+    <div class="ch">
+      <div>
+        <div class="ct" style="color:#0891b2">🌧 Rainwater Harvesting — Last 5 Years Trend</div>
+        <div class="cs">Enter annual rainwater harvested (in KL) for the last 5 financial years</div>
+      </div>
+      <button class="btn btn-g" onclick="renderRainwater()" style="font-size:11px;">📊 Update Chart</button>
+    </div>
+
+    <!-- Input grid for 5 years -->
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px;" id="rain-inputs">
+    </div>
+
+    <!-- Rainwater charts -->
+    <div class="two">
+      <div style="margin-bottom:0">
+        <div class="ct" style="margin-bottom:10px;font-size:13px;font-weight:500">Annual Rainwater Harvested (KL)</div>
+        <div style="position:relative;height:220px"><canvas id="rainBarC"></canvas></div>
+      </div>
+      <div style="margin-bottom:0">
+        <div class="ct" style="margin-bottom:10px;font-size:13px;font-weight:500">Trend &amp; Statistics</div>
+        <table class="tbl" id="rainStatTbl"></table>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- YEARLY ANALYSIS -->
 <div id="tab-yearly" class="panel">
   <div class="cc" style="background:#fff7ed;border:1.5px solid #fed7aa;">
@@ -696,10 +793,9 @@ body{background:var(--bg);color:var(--t);font-family:var(--sans);font-size:14px;
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <input type="file" id="yearly-fi" accept=".xlsx,.xls" onchange="handleYearlyFile(event)" style="display:none"/>
-        <button class="btn btn-g" onclick="document.getElementById('yearly-fi').click()">⬆ Add Monthly Report</button>
-        <button class="btn btn-r" onclick="clearYearlyData()" style="font-size:11px;">🗑 Clear All</button>
-        <span id="yearly-loaded" style="font-size:11px;font-family:var(--mono);color:#2e9e5b;align-self:center;"></span>
+        <span style="font-size:11px;font-family:var(--mono);color:#8a94a6;">🔒 Upload via Admin tab</span>
         <span id="yearly-month-count" style="font-size:11px;font-family:var(--mono);color:#c07c0a;align-self:center;"></span>
+        <span id="yearly-loaded" style="font-size:11px;font-family:var(--mono);color:#2e9e5b;align-self:center;"></span>
       </div>
     </div>
   </div>
@@ -979,6 +1075,48 @@ function doGet(e) {
             <tr><td style="color:var(--t2)">Data refresh</td><td style="text-align:right;color:var(--t3);font-family:var(--mono)">Manual (Excel import)</td></tr>
             <tr><td style="color:var(--t2)">PI Web API</td><td style="text-align:right;color:var(--r);font-family:var(--mono)">503 — pending IT</td></tr>
           </table>
+
+          <!-- Admin Data Uploads -->
+          <div style="margin-top:16px;display:flex;flex-direction:column;gap:10px;">
+
+            <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 14px;">
+              <div style="font-size:11px;font-family:var(--mono);color:#2e9e5b;font-weight:600;margin-bottom:6px;">📊 DAILY CEMS DATA</div>
+              <div style="font-size:10px;color:#4a5568;font-family:var(--mono);margin-bottom:8px;">SOx · PM · NOx · Load · Coal Flow — 15-min intervals all 6 units</div>
+              <button class="btn btn-g" onclick="document.getElementById('adm-fi').click()" style="width:100%">⬆ Load Daily Excel (CEMS_DATA template)</button>
+            </div>
+
+            <div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 14px;">
+              <div style="font-size:11px;font-family:var(--mono);color:#2563eb;font-weight:600;margin-bottom:6px;">📅 MONTHLY ANALYSIS DATA</div>
+              <div style="font-size:10px;color:#4a5568;font-family:var(--mono);margin-bottom:8px;">15-min block data for full month · Auto-saves to Yearly FY view</div>
+              <button class="btn btn-g" onclick="document.getElementById('monthly-fi').click()" style="width:100%;border-color:#2563eb;color:#2563eb">⬆ Load Monthly Excel</button>
+              <span id="monthly-loaded-adm" style="font-size:10px;font-family:var(--mono);color:#2e9e5b;display:block;margin-top:6px;"></span>
+            </div>
+
+            <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px 14px;">
+              <div style="font-size:11px;font-family:var(--mono);color:#0891b2;font-weight:600;margin-bottom:6px;">💧 WATER CONSUMPTION DATA</div>
+              <div style="font-size:10px;color:#4a5568;font-family:var(--mono);margin-bottom:8px;">Col A: Month · B: Coal SWC · C: Gas SWC · D: Total SWC (m³/MWh)</div>
+              <button class="btn btn-g" onclick="document.getElementById('water-fi').click()" style="width:100%;border-color:#0891b2;color:#0891b2">⬆ Load Water Data Excel</button>
+              <span id="water-loaded-adm" style="font-size:10px;font-family:var(--mono);color:#2e9e5b;display:block;margin-top:6px;"></span>
+            </div>
+
+            <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px 14px;">
+              <div style="font-size:11px;font-family:var(--mono);color:#2e9e5b;font-weight:600;margin-bottom:6px;">📊 GOOGLE SHEET — Auto Fetch Every 15 Min</div>
+              <div style="font-size:10px;color:#4a5568;font-family:var(--mono);margin-bottom:8px;">
+                Sheet tab: <strong>Sheet1</strong> · Sheet must be <strong>Published to web</strong> (not just shared)<br/>
+                <span style="color:#c07c0a">In Google Sheet: File → Share → Publish to web → Sheet1 → CSV → Publish</span>
+              </div>
+              <input id="gsheet-id-inp" type="text"
+                style="width:100%;font-family:var(--mono);font-size:10px;padding:6px 10px;border:1px solid #bbf7d0;border-radius:6px;background:#fff;color:#1a2035;margin-bottom:6px;"
+                placeholder="Paste Sheet ID from URL: /spreadsheets/d/PASTE_THIS_PART/edit"/>
+              <div style="display:flex;gap:6px;margin-bottom:6px;">
+                <button class="btn btn-g" onclick="saveGSheetConfig()" style="flex:1">💾 Save &amp; Start Auto-Fetch</button>
+                <button class="btn" onclick="fetchGoogleSheet(true)" style="border-color:#2e9e5b;color:#2e9e5b;">🔄 Fetch Now</button>
+                <button class="btn btn-r" onclick="clearGSheetConfig()">✕ Clear</button>
+              </div>
+              <div id="gsheet-status" style="font-size:10px;font-family:var(--mono);color:#8a94a6;"></div>
+            </div>
+
+          </div>
         </div>
       </div>
     </div>
@@ -1975,6 +2113,7 @@ function sw(name,btn){
   // Auto-render yearly when tab opened
   if(name==='yearly') setTimeout(renderYearly, 100);
   if(name==='monthly' && M) setTimeout(renderMonthly, 100);
+  if(name==='water'){ setTimeout(()=>{ initRainInputs(); if(WD) renderWater(); renderRainwater(); },100); }
 }
 
 // ── ONEDRIVE AUTO-FETCH ──────────────────────────────────────────
@@ -2351,7 +2490,7 @@ function processExcelData(raw, sheetName, source){
     if(cell===null||cell===undefined) return '--';
     // Date object
     if(cell instanceof Date)
-      return String(cell.getHours()).padStart(2,'0')+':'+String(cell.getMinutes()).padStart(2,'0');
+      return String(cell.getUTCHours()).padStart(2,'0')+':'+String(cell.getUTCMinutes()).padStart(2,'0');
     if(typeof cell==='number'){
       if(cell>40000){
         // Full datetime serial (e.g. 46173.010416 = some date at 00:15)
@@ -2631,23 +2770,29 @@ function handleYearlyFile(e){ handleMonthlyFile(e); }
 function getDateKey(cell){
   let d;
   if(cell instanceof Date) d=new Date(cell);
-  else if(typeof cell==='number'&&cell>40000) d=new Date(Math.round((cell-25569)*86400000));
-  else{
+  else if(typeof cell==='number'&&cell>40000){
+    // Use UTC to avoid IST timezone shift causing wrong month
+    const ms=Math.round((cell-25569)*86400000);
+    d=new Date(ms);
+  } else {
     const s=String(cell||'').trim();
     const m=s.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
     if(!m) return null;
     const yr=m[3].length===2?2000+parseInt(m[3]):parseInt(m[3]);
-    d=new Date(yr,parseInt(m[2])-1,parseInt(m[1]));
+    // Use UTC date construction to avoid timezone issues
+    d=new Date(Date.UTC(yr,parseInt(m[2])-1,parseInt(m[1])));
   }
   if(!d||isNaN(d)) return null;
-  const first=new Date(d.getFullYear(),d.getMonth(),1).getDay();
+
+  // Always use UTC methods for consistent date across timezones
+  const yr  = d.getUTCFullYear();
+  const mon = d.getUTCMonth();
+  const day = d.getUTCDate();
+  const dateStr = yr+'-'+String(mon+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+  const first = new Date(Date.UTC(yr,mon,1)).getUTCDay();
   return{
-    dateStr:d.toISOString().slice(0,10),
-    dayNum:d.getDate(),
-    month:d.getMonth(),
-    year:d.getFullYear(),
-    weekNum:Math.ceil((d.getDate()+first)/7),
-    jsDate:d
+    dateStr, dayNum:day, month:mon, year:yr,
+    weekNum:Math.ceil((day+first)/7), jsDate:d
   };
 }
 
@@ -2673,10 +2818,10 @@ function processMonthlyData(raw,fileName){
   const allRows=raw.slice(ds).filter(r=>r[0]!==null&&r[0]!==undefined&&r[0]!=='');
   const byDate={};
   let monthNum=null,yearNum=null;
-
+  const mc={};
   allRows.forEach(row=>{
     const dk=getDateKey(row[0]); if(!dk) return;
-    monthNum=dk.month; yearNum=dk.year;
+    const mk=dk.year+'-'+dk.month; mc[mk]=(mc[mk]||0)+1;
     if(!byDate[dk.dateStr]) byDate[dk.dateStr]={
       dateStr:dk.dateStr,dayNum:dk.dayNum,weekNum:dk.weekNum,
       month:dk.month,year:dk.year,
@@ -2693,15 +2838,68 @@ function processMonthlyData(raw,fileName){
     }
   });
 
-  const dates=Object.values(byDate).sort((a,b)=>a.dateStr.localeCompare(b.dateStr));
+  const top=Object.keys(mc).sort((a,b)=>mc[b]-mc[a])[0];
+if(top){ yearNum=+top.split('-')[0]; monthNum=+top.split('-')[1]; }
+const dates=Object.values(byDate)
+  .filter(d=>d.month===monthNum&&d.year===yearNum)
+  .sort((a,b)=>a.dateStr.localeCompare(b.dateStr));
   const vavg=arr=>arr.length?+(arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(2):null;
 
-  const dayWise=dates.map(d=>({
-    dateStr:d.dateStr,dayNum:d.dayNum,weekNum:d.weekNum,
-    sox:Array.from({length:6},(_,u)=>({avg:vavg(d.sox[u]),max:d.sox[u].length?Math.max(...d.sox[u]):null,exc:d.sox[u].filter(v=>v>=SOX_LIM[u]).length,total:d.sox[u].length})),
-    pm: Array.from({length:6},(_,u)=>({avg:vavg(d.pm[u]), max:d.pm[u].length?Math.max(...d.pm[u]):null, exc:d.pm[u].filter(v=>v>=PM_LIM[u]).length, total:d.pm[u].length})),
-    nox:Array.from({length:6},(_,u)=>({avg:vavg(d.nox[u]),max:d.nox[u].length?Math.max(...d.nox[u]):null,exc:d.nox[u].filter(v=>v>=NOX_LIM[u]).length,total:d.nox[u].length}))
-  }));
+  // Per-row N/A tracking: group all rows by date
+  const rowsByDate={};
+  allRows.forEach(row=>{
+    const dk=getDateKey(row[0]); if(!dk) return;
+    if(!rowsByDate[dk.dateStr]) rowsByDate[dk.dateStr]=[];
+    rowsByDate[dk.dateStr].push(row);
+  });
+
+  // Helper: extract numeric value from cell (null if N/A)
+  const getVal=(row,col)=>{
+    const v=row[col];
+    if(v===null||v===undefined||v==='') return null;
+    if(typeof v==='number') return isNaN(v)?null:v;
+    const s=String(v).trim();
+    if(s.startsWith('[')||/no good|shutdown|bad/i.test(s)) return null;
+    const n=parseFloat(s); return isNaN(n)?null:n;
+  };
+
+  const dayWise=dates.map(d=>{
+    const rows=rowsByDate[d.dateStr]||[];
+    const buildParam=(paramCol,lim,u)=>{
+      const loadCol=2+u*5;
+      let naOn=0, naOff=0, onTotal=0;
+      const validVals=[];
+      rows.forEach(row=>{
+        const pv=getVal(row,paramCol);
+        const lv=getVal(row,loadCol);
+                     if(lv!==null && lv>10) onTotal++;
+        if(pv===null){
+          // Data not available — determine if unit was running
+          if(lv!==null && lv>10){
+            naOn++;   // Unit was ON (load>10 MW) but sensor data missing
+          } else {
+            naOff++;  // Unit was OFF or load also unavailable
+          }
+        } else {
+          validVals.push(pv);
+        }
+      });
+      return{
+        avg    : vavg(validVals),
+        max    : validVals.length ? Math.max(...validVals) : null,
+        exc    : validVals.filter(v=>v>=lim).length,
+        total  : rows.length,
+        naOn,
+        naOff, onTotal
+      };
+    };
+    return{
+      dateStr:d.dateStr, dayNum:d.dayNum, weekNum:d.weekNum,
+      sox:Array.from({length:6},(_,u)=>buildParam(2+u*5+2, SOX_LIM[u], u)),
+      pm :Array.from({length:6},(_,u)=>buildParam(2+u*5+3, PM_LIM[u],  u)),
+      nox:Array.from({length:6},(_,u)=>buildParam(2+u*5+4, NOX_LIM[u], u))
+    };
+  });
 
   // Week-wise
   const wkMap={};
@@ -2716,17 +2914,22 @@ function processMonthlyData(raw,fileName){
     }
   });
 
-  // Monthly summary for yearly
+  // Monthly summary for yearly (includes N/A counts)
   const monthSummary={month:monthNum,year:yearNum,
     label:FY_MONTHS[FY_MONTH_NUMS.indexOf(monthNum)]||(monthNum+1)+'/'+yearNum,
     sox:[],pm:[],nox:[]};
   for(let u=0;u<6;u++){
-    const aS=[].concat(...dates.map(d=>byDate[d.dateStr].sox[u]));
-    const aP=[].concat(...dates.map(d=>byDate[d.dateStr].pm[u]));
-    const aN=[].concat(...dates.map(d=>byDate[d.dateStr].nox[u]));
-    monthSummary.sox.push({avg:vavg(aS),exc:aS.filter(v=>v>=SOX_LIM[u]).length,total:aS.length});
-    monthSummary.pm.push({avg:vavg(aP),exc:aP.filter(v=>v>=PM_LIM[u]).length,total:aP.length});
-    monthSummary.nox.push({avg:vavg(aN),exc:aN.filter(v=>v>=NOX_LIM[u]).length,total:aN.length});
+    const sumParam=(key)=>{
+      const totExc=dayWise.reduce((s,d)=>s+(d[key][u].exc||0),0);
+      const totBlocks=dayWise.reduce((s,d)=>s+(d[key][u].total||0),0);
+      const totNaOn=dayWise.reduce((s,d)=>s+(d[key][u].naOn||0),0);
+      const totNaOff=dayWise.reduce((s,d)=>s+(d[key][u].naOff||0),0);
+      const avgs=dayWise.map(d=>d[key][u].avg).filter(v=>v!==null);
+           return{avg:vavg(avgs),exc:totExc,total:totBlocks,naOn:totNaOn,naOff:totNaOff,onTotal:dayWise.reduce((s,d)=>s+(d[key][u].onTotal||0),0)};
+    };
+    monthSummary.sox.push(sumParam('sox'));
+    monthSummary.pm.push(sumParam('pm'));
+    monthSummary.nox.push(sumParam('nox'));
   }
 
   return{fileName,totalRows:allRows.length,month:monthNum,year:yearNum,dayWise,monthSummary};
@@ -2810,21 +3013,32 @@ function renderMonthly(){
         y:{grid:{color:'rgba(0,0,0,0.06)'},ticks:{color:'#64748b',font:{size:9}},
           title:{display:true,text:'Blocks exceeded',color:'#64748b',font:{size:10}}}}}});
 
-  // Stats table
+  // Stats table with N/A columns
   const tbl=document.getElementById('monthlyStatTbl');
   const rows=Array.from({length:6},(_,u)=>{
-    const totExc=M.dayWise.reduce((s,d)=>s+(d[p][u].exc||0),0);
+    const totExc   =M.dayWise.reduce((s,d)=>s+(d[p][u].exc||0),0);
     const totBlocks=M.dayWise.reduce((s,d)=>s+(d[p][u].total||0),0);
-    const maxVal=M.dayWise.reduce((mx,d)=>d[p][u].max!==null&&d[p][u].max>mx?d[p][u].max:mx,0);
-    const avgs=M.dayWise.map(d=>d[p][u].avg).filter(v=>v!==null);
-    const avg=avgs.length?+(avgs.reduce((a,b)=>a+b,0)/avgs.length).toFixed(1):null;
-    const comp=totBlocks>0?((totBlocks-totExc)/totBlocks*100).toFixed(1):null;
-    return `<tr><td style="color:${UC[u]}">U${u+1}</td><td>${avg??'N/A'}</td>
+    const totNaOn  =M.dayWise.reduce((s,d)=>s+(d[p][u].naOn||0),0);
+    const totNaOff =M.dayWise.reduce((s,d)=>s+(d[p][u].naOff||0),0);
+    const maxVal   =M.dayWise.reduce((mx,d)=>d[p][u].max!==null&&d[p][u].max>mx?d[p][u].max:mx,0);
+    const avgs     =M.dayWise.map(d=>d[p][u].avg).filter(v=>v!==null);
+    const avg      =avgs.length?+(avgs.reduce((a,b)=>a+b,0)/avgs.length).toFixed(1):null;
+    const comp     =totBlocks>0?((totBlocks-totExc)/totBlocks*100).toFixed(1):null;
+    return `<tr>
+      <td style="color:${UC[u]}">U${u+1}</td>
+      <td>${avg??'N/A'}</td>
       <td>${maxVal??'N/A'}</td>
       <td style="color:${totExc>0?'#d63031':'#2e9e5b'};font-weight:600">${totExc}</td>
-      <td style="color:${parseFloat(comp)>=95?'#2e9e5b':parseFloat(comp)>=80?'#c07c0a':'#d63031'};font-weight:600">${comp??'N/A'}%</td></tr>`;
+      <td style="color:${parseFloat(comp)>=95?'#2e9e5b':parseFloat(comp)>=80?'#c07c0a':'#d63031'};font-weight:600">${comp??'N/A'}%</td>
+      <td style="color:${totNaOn>0?'#d63031':'#2e9e5b'};font-weight:${totNaOn>0?600:400}">${totNaOn}</td>
+      <td style="color:#8a94a6">${totNaOff}</td>
+    </tr>`;
   }).join('');
-  tbl.innerHTML=`<tr><th>Unit</th><th>Avg</th><th>Max</th><th>Total Exceeded</th><th>Compliance</th></tr>${rows}`;
+  tbl.innerHTML=`<tr>
+    <th>Unit</th><th>Avg</th><th>Max</th><th>Exceeded</th><th>Compliance</th>
+    <th style="color:#d63031">N/A — Unit ON</th>
+    <th style="color:#8a94a6">N/A — Unit OFF</th>
+  </tr>${rows}`;
 
   // Compliance bar
   dc('monthlyCompC');
@@ -2892,16 +3106,28 @@ function renderYearly(){
     tbl.innerHTML='<tr><td colspan="5" style="color:#8a94a6;font-style:italic;text-align:center;padding:20px">Upload monthly Excel files to build yearly view. Each month is stored automatically.</td></tr>';
   } else {
     const rows=Array.from({length:6},(_,u)=>{
-      const te=fy.months.reduce((s,m)=>s+(m[p][u].exc||0),0);
-      const tb=fy.months.reduce((s,m)=>s+(m[p][u].total||0),0);
-      const avgs=fy.months.map(m=>m[p][u].avg).filter(v=>v!==null);
-      const avg=avgs.length?+(avgs.reduce((a,b)=>a+b,0)/avgs.length).toFixed(1):null;
-      const comp=tb>0?((tb-te)/tb*100).toFixed(1):null;
-      return `<tr><td style="color:${UC[u]}">U${u+1}</td><td>${avg??'N/A'}</td>
-        <td style="color:${te>0?'#d63031':'#2e9e5b'};font-weight:600">${te}</td><td>${tb}</td>
-        <td style="color:${parseFloat(comp)>=95?'#2e9e5b':parseFloat(comp)>=80?'#c07c0a':'#d63031'};font-weight:600">${comp??'N/A'}%</td></tr>`;
+      const te    =fy.months.reduce((s,m)=>s+(m[p][u].exc||0),0);
+      const tb    =fy.months.reduce((s,m)=>s+(m[p][u].total||0),0);
+      const naOn  =fy.months.reduce((s,m)=>s+(m[p][u].naOn||0),0);
+      const naOff =fy.months.reduce((s,m)=>s+(m[p][u].naOff||0),0);
+      const avgs  =fy.months.map(m=>m[p][u].avg).filter(v=>v!==null);
+      const avg   =avgs.length?+(avgs.reduce((a,b)=>a+b,0)/avgs.length).toFixed(1):null;
+      const comp  =tb>0?((tb-te)/tb*100).toFixed(1):null;
+      return `<tr>
+        <td style="color:${UC[u]}">U${u+1}</td>
+        <td>${avg??'N/A'}</td>
+        <td style="color:${te>0?'#d63031':'#2e9e5b'};font-weight:600">${te}</td>
+        <td>${tb}</td>
+        <td style="color:${parseFloat(comp)>=95?'#2e9e5b':parseFloat(comp)>=80?'#c07c0a':'#d63031'};font-weight:600">${comp??'N/A'}%</td>
+        <td style="color:${naOn>0?'#d63031':'#2e9e5b'};font-weight:${naOn>0?600:400}">${naOn}</td>
+        <td style="color:#8a94a6">${naOff}</td>
+      </tr>`;
     }).join('');
-    tbl.innerHTML=`<tr><th>Unit</th><th>Annual Avg</th><th>Total Exceeded</th><th>Total Blocks</th><th>Compliance</th></tr>${rows}`;
+    tbl.innerHTML=`<tr>
+      <th>Unit</th><th>Annual Avg</th><th>Total Exceeded</th><th>Total Blocks</th><th>Compliance</th>
+      <th style="color:#d63031">N/A — Unit ON</th>
+      <th style="color:#8a94a6">N/A — Unit OFF</th>
+    </tr>${rows}`;
   }
 
   // Monthly compliance
@@ -2926,6 +3152,460 @@ function clearYearlyData(){
   const el=document.getElementById('yearly-month-count');
   if(el) el.textContent='0 months stored';
 }
+
+// ══════════════════════════════════════════════════════════════
+// WATER CONSUMPTION ANALYSIS
+// ══════════════════════════════════════════════════════════════
+
+let WD = null; // water data store
+const WATER_NORM = 3.5; // m³/MWh CPCB/MoP norm
+
+function handleWaterFile(e){
+  const file = e.target.files[0]; if(!file) return;
+  const label = document.getElementById('water-loaded');
+  label.textContent = 'Reading...';
+  const r = new FileReader();
+  r.onload = ev => {
+    try{
+      const wb  = XLSX.read(ev.target.result,{type:'array'});
+      const ws  = wb.Sheets[wb.SheetNames[0]];
+      const raw = XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      WD = processWaterData(raw, file.name);
+      const wmsg='✓ '+file.name+' ('+WD.rows.length+' months)';
+      label.textContent = wmsg;
+      const admWLbl=document.getElementById('water-loaded-adm');
+      if(admWLbl) admWLbl.textContent=wmsg;
+      renderWater();
+      // Switch to water tab to show results
+      sw('water',document.querySelector('[data-tab=water]'));
+    } catch(err){
+      label.textContent = '✗ '+err.message;
+      console.error(err);
+    }
+  };
+  r.readAsArrayBuffer(file);
+}
+
+function processWaterData(raw, fileName){
+  // Find header row (contains "month" or "coal" etc.)
+  let ds = 0;
+  for(let i=0;i<Math.min(raw.length,10);i++){
+    const row = raw[i].map(c=>String(c||'').toLowerCase());
+    if(row.some(c=>c.includes('month')||c.includes('apr')||c.includes('coal'))){
+      ds = i+1; break;
+    }
+  }
+
+  const getNum = v => {
+    if(v===null||v===undefined||v==='') return null;
+    if(typeof v==='number') return isNaN(v)?null:+v.toFixed(3);
+    const n = parseFloat(String(v).replace(/[^0-9.]/g,''));
+    return isNaN(n)?null:+n.toFixed(3);
+  };
+
+  const getMonthLabel = v => {
+    if(!v) return null;
+    if(v instanceof Date) return v.toLocaleString('en-IN',{month:'short',year:'2-digit'});
+    const s = String(v).trim();
+    // Try to match month names
+    const months=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+    const ml = s.toLowerCase();
+    const mi = months.findIndex(m=>ml.includes(m));
+    if(mi>=0) return s.slice(0,3).charAt(0).toUpperCase()+s.slice(1,3).toLowerCase();
+    return s;
+  };
+
+  const rows = [];
+  for(let i=ds;i<raw.length;i++){
+    const row = raw[i];
+    const month = getMonthLabel(row[0]);
+    const coal  = getNum(row[1]);
+    const gas   = getNum(row[2]);
+    const total = getNum(row[3]) || (coal!==null&&gas!==null ? +(coal+gas).toFixed(3) : null);
+    if(!month) continue;
+    rows.push({month, coal, gas, total});
+  }
+
+  if(!rows.length) throw new Error('No data found. Check format: Col A=Month, B=Coal SWC, C=Gas SWC, D=Total SWC');
+  return {fileName, rows};
+}
+
+function renderWater(){
+  if(!WD||!WD.rows.length) return;
+  const rows   = WD.rows;
+  const labels = rows.map(r=>r.month);
+  const coal   = rows.map(r=>r.coal);
+  const gas    = rows.map(r=>r.gas);
+  const total  = rows.map(r=>r.total);
+  const norm   = Array(labels.length).fill(WATER_NORM);
+
+  document.getElementById('water-period').textContent =
+    'Financial Year · Norm: '+WATER_NORM+' m³/MWh · Months: '+labels.join(', ');
+
+  const chartOpts = {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{
+      legend:{display:true,labels:{color:'#4a5568',font:{size:11,family:"'IBM Plex Mono'"},boxWidth:12,padding:12}},
+      tooltip:{backgroundColor:'rgba(15,20,35,0.92)',titleColor:'#fff',bodyColor:'#c8d0e0',
+        borderColor:'rgba(0,0,0,0.15)',borderWidth:1,
+        callbacks:{label:c=>c.dataset.label+': '+c.parsed.y+' m³/MWh'}}
+    },
+    scales:{
+      x:{grid:{display:false},ticks:{color:'#64748b',font:{size:10}}},
+      y:{grid:{color:'rgba(0,0,0,0.06)'},ticks:{color:'#64748b',font:{size:9}},
+        title:{display:true,text:'Specific Water Consumption (m³/MWh)',color:'#64748b',font:{size:10}},
+        min:0}
+    }
+  };
+
+  // ── Trend Line Chart ──
+  dc('waterTrendC');
+  CH.waterTrendC = new Chart(document.getElementById('waterTrendC'),{
+    type:'line',
+    data:{labels, datasets:[
+      {label:'Coal Station', data:coal, borderColor:'#0891b2', backgroundColor:'rgba(8,145,178,0.08)',
+ tension:0.3, pointRadius:5, pointHoverRadius:7, borderWidth:2.5, fill:true, spanGaps:true, order:2},
+{label:'Gas Station', data:gas, borderColor:'#7c3aed', backgroundColor:'rgba(124,58,237,0.08)',
+ tension:0.3, pointRadius:5, pointHoverRadius:7, borderWidth:2.5, fill:true, spanGaps:true, order:1},
+{label:'Total', data:total, borderColor:'#2e9e5b', backgroundColor:'transparent',
+ tension:0.3, pointRadius:7, pointStyle:'rectRot', pointHoverRadius:9, borderWidth:3,
+ borderDash:[8,4], fill:false, spanGaps:true, order:0},
+    ]},
+    options:{...chartOpts, spanGaps:true}
+  });
+
+  // ── Bar Chart ──
+  dc('waterBarC');
+  CH.waterBarC = new Chart(document.getElementById('waterBarC'),{
+    type:'bar',
+    data:{labels, datasets:[
+      {label:'Coal Station', data:coal,  backgroundColor:'rgba(8,145,178,0.75)',  borderRadius:3,borderWidth:0},
+      {label:'Gas Station',  data:gas,   backgroundColor:'rgba(124,58,237,0.75)', borderRadius:3,borderWidth:0},
+      {label:'Total',        data:total, backgroundColor:'rgba(46,158,91,0.75)',  borderRadius:3,borderWidth:0},
+      {label:'Norm',         data:norm,  type:'line',
+       borderColor:'rgba(214,48,49,0.8)',borderWidth:2,borderDash:[6,4],
+       pointRadius:0,fill:false,tension:0}
+    ]},
+    options:chartOpts
+  });
+
+  // ── Stats Table ──
+  const tbl = document.getElementById('waterStatTbl');
+  const stats = (arr)=>{
+    const v=arr.filter(x=>x!==null);
+    if(!v.length) return {min:'N/A',max:'N/A',avg:'N/A',above:0};
+    return{
+      min:  Math.min(...v).toFixed(2),
+      max:  Math.max(...v).toFixed(2),
+      avg:  (v.reduce((a,b)=>a+b,0)/v.length).toFixed(2),
+      above:v.filter(x=>x>WATER_NORM).length
+    };
+  };
+  const sc=stats(coal), sg=stats(gas), st=stats(total);
+  const normStyle = n => n>0?'color:#d63031;font-weight:600':'color:#2e9e5b';
+  tbl.innerHTML=`
+    <tr><th>Station</th><th>Min</th><th>Avg</th><th>Max</th><th style="color:#d63031">Above Norm</th></tr>
+    <tr>
+      <td style="color:#0891b2;font-weight:600">Coal Station</td>
+      <td>${sc.min}</td><td>${sc.avg}</td><td>${sc.max}</td>
+      <td style="${normStyle(sc.above)}">${sc.above} months</td>
+    </tr>
+    <tr>
+      <td style="color:#7c3aed;font-weight:600">Gas Station</td>
+      <td>${sg.min}</td><td>${sg.avg}</td><td>${sg.max}</td>
+      <td style="${normStyle(sg.above)}">${sg.above} months</td>
+    </tr>
+    <tr>
+      <td style="color:#2e9e5b;font-weight:600">Total</td>
+      <td>${st.min}</td><td>${st.avg}</td><td>${st.max}</td>
+      <td style="${normStyle(st.above)}">${st.above} months</td>
+    </tr>
+    <tr style="background:#f8fafc;font-size:10px;">
+      <td colspan="5" style="color:#8a94a6;padding:6px 4px;">
+        Norm: ${WATER_NORM} m³/MWh &nbsp;·&nbsp; Above norm = months exceeding norm &nbsp;·&nbsp; Avg over ${rows.length} months
+      </td>
+    </tr>`;
+
+  // ── Cumulative YTD Chart ──
+  dc('waterYTDC');
+  const cumSum = arr => {
+    let s=0; return arr.map(v=>v!==null?(s+=v,+s.toFixed(2)):null);
+  };
+  CH.waterYTDC = new Chart(document.getElementById('waterYTDC'),{
+    type:'bar',
+    data:{labels, datasets:[
+      {label:'Coal Station (Cumul.)', data:cumSum(coal),  backgroundColor:'rgba(8,145,178,0.6)',  borderRadius:3},
+      {label:'Gas Station (Cumul.)',  data:cumSum(gas),   backgroundColor:'rgba(124,58,237,0.6)', borderRadius:3},
+      {label:'Total (Cumul.)',        data:cumSum(total), backgroundColor:'rgba(46,158,91,0.6)',  borderRadius:3}
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:true,labels:{color:'#4a5568',font:{size:11,family:"'IBM Plex Mono'"},boxWidth:12,padding:12}},
+        tooltip:{backgroundColor:'rgba(15,20,35,0.92)',titleColor:'#fff',bodyColor:'#c8d0e0',
+          borderColor:'rgba(0,0,0,0.15)',borderWidth:1,
+          callbacks:{label:c=>c.dataset.label+': '+c.parsed.y+' m³/MWh (cumulative)'}}},
+      scales:{
+        x:{grid:{display:false},ticks:{color:'#64748b',font:{size:10}}},
+        y:{grid:{color:'rgba(0,0,0,0.06)'},ticks:{color:'#64748b',font:{size:9}},
+          title:{display:true,text:'Cumulative SWC (m³/MWh)',color:'#64748b',font:{size:10}},min:0}}
+    }
+  });
+}
+
+// ── RAINWATER HARVESTING ──────────────────────────────────────
+function initRainInputs(){
+  const now = new Date();
+  const fyStart = now.getMonth()>=3 ? now.getFullYear() : now.getFullYear()-1;
+  const container = document.getElementById('rain-inputs');
+  if(!container) return;
+  container.innerHTML='';
+  for(let i=4;i>=0;i--){
+    const fy=fyStart-i;
+    const label='FY '+fy+'-'+String(fy+1).slice(2);
+    const saved=localStorage.getItem('ntpc_rain_'+fy)||'';
+    container.innerHTML+=`
+      <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px;text-align:center;">
+        <div style="font-size:11px;font-family:var(--mono);color:#0891b2;font-weight:600;margin-bottom:8px;">${label}</div>
+        <input id="rain-${fy}" type="number" min="0" step="0.01"
+          value="${saved}"
+          placeholder="0"
+          style="width:100%;font-family:var(--mono);font-size:13px;padding:7px 10px;border:1px solid #bae6fd;border-radius:6px;background:#fff;color:#1a2035;text-align:center;outline:none;"
+          oninput="localStorage.setItem('ntpc_rain_${fy}',this.value)"
+        />
+        <div style="font-size:10px;color:#8a94a6;font-family:var(--mono);margin-top:4px;">KL</div>
+      </div>`;
+  }
+}
+
+function renderRainwater(){
+  const now = new Date();
+  const fyStart = now.getMonth()>=3 ? now.getFullYear() : now.getFullYear()-1;
+  const years=[], values=[], labels=[];
+
+  for(let i=4;i>=0;i--){
+    const fy=fyStart-i;
+    const label='FY '+fy+'-'+String(fy+1).slice(2);
+    const val=parseFloat(localStorage.getItem('ntpc_rain_'+fy)||document.getElementById('rain-'+fy)?.value||'0')||0;
+    labels.push(label); values.push(val); years.push(fy);
+  }
+
+  // Save all inputs
+  years.forEach((fy,i)=>localStorage.setItem('ntpc_rain_'+fy, values[i]));
+
+  const colors=values.map(v=>v>0?'rgba(8,145,178,0.75)':'rgba(200,210,220,0.5)');
+  const maxVal=Math.max(...values,1);
+
+  // ── Bar + Trend Line Chart ──
+  dc('rainBarC');
+  CH.rainBarC=new Chart(document.getElementById('rainBarC'),{
+    type:'bar',
+    data:{labels, datasets:[
+      {label:'Rainwater Harvested (KL)',
+       data:values,
+       backgroundColor:colors,
+       borderColor:colors.map(c=>c.replace('0.75','1')),
+       borderWidth:1,borderRadius:5},
+      {label:'Trend',type:'line',
+       data:values,
+       borderColor:'rgba(46,158,91,0.8)',
+       backgroundColor:'transparent',
+       borderWidth:2.5,pointRadius:5,
+       pointBackgroundColor:'#2e9e5b',
+       tension:0.3,fill:false}
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:true,labels:{color:'#4a5568',font:{size:11,family:"'IBM Plex Mono'"},boxWidth:12,padding:10}},
+        tooltip:{backgroundColor:'rgba(15,20,35,0.92)',titleColor:'#fff',bodyColor:'#c8d0e0',
+          borderColor:'rgba(0,0,0,0.15)',borderWidth:1,
+          callbacks:{label:c=>c.dataset.label+': '+c.parsed.y.toLocaleString()+' KL'}}
+      },
+      scales:{
+        x:{grid:{display:false},ticks:{color:'#64748b',font:{size:10}}},
+        y:{grid:{color:'rgba(0,0,0,0.06)'},ticks:{color:'#64748b',font:{size:9}},
+          title:{display:true,text:'Rainwater Harvested (KL)',color:'#64748b',font:{size:10}},
+          min:0}
+      }
+    }
+  });
+
+  // ── Stats Table ──
+  const tbl=document.getElementById('rainStatTbl');
+  const nonZero=values.filter(v=>v>0);
+  const total=values.reduce((a,b)=>a+b,0);
+  const avg=nonZero.length?+(total/nonZero.length).toFixed(0):0;
+  const maxV=Math.max(...values);
+  const minV=nonZero.length?Math.min(...nonZero):0;
+  const maxYear=labels[values.indexOf(maxV)];
+  const trend=values[4]>values[0]?'📈 Increasing':values[4]<values[0]?'📉 Decreasing':'➡ Stable';
+  const growth=values[0]>0?+(((values[4]-values[0])/values[0])*100).toFixed(1):null;
+
+  tbl.innerHTML=`
+    <tr><th colspan="2" style="color:#0891b2">Rainwater Harvesting Summary</th></tr>
+    <tr><td style="color:#4a5568">5-Year Total</td><td style="font-weight:600;color:#0891b2">${total.toLocaleString()} KL</td></tr>
+    <tr><td style="color:#4a5568">Annual Average</td><td style="font-weight:600">${avg.toLocaleString()} KL</td></tr>
+    <tr><td style="color:#4a5568">Best Year</td><td style="font-weight:600;color:#2e9e5b">${maxYear} (${maxV.toLocaleString()} KL)</td></tr>
+    <tr><td style="color:#4a5568">Lowest Year</td><td style="font-weight:600;color:#c07c0a">${minV.toLocaleString()} KL</td></tr>
+    <tr><td style="color:#4a5568">5-Year Trend</td><td style="font-weight:600">${trend}</td></tr>
+    ${growth!==null?`<tr><td style="color:#4a5568">Growth</td><td style="font-weight:600;color:${growth>=0?'#2e9e5b':'#d63031'}">${growth>=0?'+':''}${growth}%</td></tr>`:''}
+  `;
+}
+
+// ══════════════════════════════════════════════════════════════
+// GOOGLE SHEET AUTO-FETCH (JSONP via gviz — no CORS issues)
+// ══════════════════════════════════════════════════════════════
+
+let gsheetTimer = null;
+const GSHEET_INTERVAL = 15 * 60 * 1000; // 15 minutes
+const GSHEET_TAB = 'Sheet1';
+const GSHEET_DEFAULT_ID = '1XoBzt9-YZbBQmLnlAlhQ7QkbfGT80R6GhWWEGhDMynA';
+
+function saveGSheetConfig(){
+  const id = (document.getElementById('gsheet-id-inp')?.value||'').trim();
+  if(!id){ setGSheetStatus('error','Please paste your Google Sheet ID.'); return; }
+  localStorage.setItem('ntpc_gsheet_id', id);
+  setGSheetStatus('ok','Saved! Starting auto-fetch...');
+  startGSheetAutoFetch();
+  fetchGoogleSheet(true);
+}
+
+function clearGSheetConfig(){
+  localStorage.removeItem('ntpc_gsheet_id');
+  if(gsheetTimer){ clearInterval(gsheetTimer); gsheetTimer=null; }
+  setGSheetStatus('idle','Google Sheet auto-fetch disabled.');
+  const inp=document.getElementById('gsheet-id-inp');
+  if(inp) inp.value='';
+}
+
+function setGSheetStatus(type, msg){
+  const el=document.getElementById('gsheet-status');
+  if(!el) return;
+  const col={ok:'#2e9e5b',error:'#d63031',idle:'#8a94a6',fetching:'#c07c0a'}[type]||'#8a94a6';
+  el.style.color=col;
+  el.textContent=msg;
+}
+
+function startGSheetAutoFetch(){
+  if(gsheetTimer){ clearInterval(gsheetTimer); }
+  gsheetTimer = setInterval(()=>fetchGoogleSheet(false), GSHEET_INTERVAL);
+  addLog('Google Sheet auto-fetch started — every 15 min','ok');
+}
+
+// ── Fetch via Google Visualization JSONP (bypasses CORS) ─────
+function fetchGoogleSheet(manual=false){
+  const id = localStorage.getItem('ntpc_gsheet_id') || GSHEET_DEFAULT_ID;
+  if(!id){
+    if(manual) setGSheetStatus('error','No Sheet ID saved. Enter it above first.');
+    return;
+  }
+
+  setGSheetStatus('fetching', 'Fetching from Google Sheet...');
+  addLog('Fetching from Google Sheet ('+GSHEET_TAB+')...','');
+
+  // Use Google Visualization API — returns JSONP, no CORS issues
+  const cbName = 'gsheet_cb_' + Date.now();
+  const timer  = setTimeout(()=>{
+    delete window[cbName];
+    const s=document.getElementById('gsheet_script_'+cbName);
+    if(s) s.remove();
+    setGSheetStatus('error','✗ Timeout — Check Sheet ID and make sure sheet is public (Anyone with link)');
+  }, 30000);
+
+  window[cbName] = function(resp){
+    clearTimeout(timer);
+    delete window[cbName];
+    const s=document.getElementById('gsheet_script_'+cbName);
+    if(s) s.remove();
+
+    try{
+      if(!resp||!resp.table) throw new Error('No data returned from sheet');
+
+      // Convert gviz table → 2D array (same format as Excel upload)
+      const cols = resp.table.cols || [];
+      const rows = resp.table.rows || [];
+
+      if(!rows.length) throw new Error('Sheet appears empty — check tab name is Sheet1');
+
+      // Build header row from col labels
+      const header = cols.map(c=>c.label||c.id||'');
+      const raw = [header];
+
+      // Build data rows
+      rows.forEach(row=>{
+        const r = (row.c||[]).map(cell=>{
+          if(!cell||cell.v===null||cell.v===undefined) return '';
+          // Handle date values from gviz
+          if(typeof cell.v==='string'&&cell.v.startsWith('Date(')){
+            const parts=cell.v.slice(5,-1).split(',').map(Number);
+            const d=new Date(Date.UTC(parts[0],parts[1],parts[2],parts[3]||0,parts[4]||0));
+            return d;
+          }
+          return cell.v;
+        });
+        raw.push(r);
+      });
+
+      // Process as CEMS data
+      processExcelData(raw, GSHEET_TAB, 'Google Sheet');
+
+      const now=new Date().toLocaleTimeString('en-IN');
+      setGSheetStatus('ok','✓ '+rows.length+' rows loaded at '+now);
+      addLog('✓ Google Sheet loaded — '+rows.length+' rows at '+now,'ok');
+
+      // Countdown to next fetch
+      if(gsheetTimer){
+        let secs=GSHEET_INTERVAL/1000;
+        const countdown=setInterval(()=>{
+          secs--;
+          const m=Math.floor(secs/60),s2=secs%60;
+          const el=document.getElementById('gsheet-status');
+          if(el&&el.style.color!=='#d63031')
+            el.textContent='✓ Last: '+now+' · Next in '+m+'m '+String(s2).padStart(2,'0')+'s';
+          if(secs<=0) clearInterval(countdown);
+        },1000);
+      }
+
+    }catch(err){
+      setGSheetStatus('error','✗ '+err.message);
+      addLog('✗ GSheet parse error: '+err.message,'err');
+    }
+  };
+
+  // Inject script tag — JSONP bypasses CORS entirely
+  const script = document.createElement('script');
+  script.id = 'gsheet_script_'+cbName;
+  script.onerror = ()=>{
+    clearTimeout(timer);
+    delete window[cbName];
+    setGSheetStatus('error',
+      '✗ Script load failed. Make sure: '+
+      '1) Sheet ID is correct '+
+      '2) Sheet is shared as Anyone with link '+
+      '3) Tab name is exactly "Sheet1"'
+    );
+  };
+  // gviz JSONP — semicolon must be literal, no tq= needed
+  script.src = 'https://docs.google.com/spreadsheets/d/'+id+
+    '/gviz/tq?tqx=out:json;responseHandler:'+cbName+
+    '&sheet='+encodeURIComponent(GSHEET_TAB)+
+    '&t='+Date.now();
+  document.head.appendChild(script);
+}
+
+// ── Restore GSheet config on page load ───────────────────────
+window.addEventListener('load',()=>{
+  const savedId=localStorage.getItem('ntpc_gsheet_id') || GSHEET_DEFAULT_ID;
+  if(savedId){
+    const inp=document.getElementById('gsheet-id-inp');
+    if(inp) inp.value=savedId;
+    setGSheetStatus('ok','Auto-fetch configured. Fetching...');
+    startGSheetAutoFetch();
+    setTimeout(()=>fetchGoogleSheet(false), 2000);
+  }
+});
+
+// ── INIT — wrapped in try/catch so errors don't freeze the page
 
 // ── INIT — wrapped in try/catch so errors don't freeze the page
 try { buildTagTable(); } catch(e){ console.error('buildTagTable error:', e); }
@@ -2975,7 +3655,245 @@ if(window.innerWidth<=600){
   document.getElementById('mob-nav').style.display='block';
   document.querySelector('.main').style.paddingBottom='70px';
 }
+// ══════════════════════════════════════════════════════════════
+// GOOGLE SHEETS — MONTHLY / YEARLY / WATER (auto-fetch, manual upload kept)
+// PASTE THIS BLOCK inside the last script block of the dashboard HTML, at its very end.
+// No other edits needed. Existing Excel upload buttons keep working.
+// ══════════════════════════════════════════════════════════════
 
+// OPTIONAL: paste Sheet IDs here so EVERY colleague's browser auto-loads them.
+// (IDs saved from the Admin tab are stored only in that one browser.)
+const GS_DEFAULTS = {
+  monthly: {id: '1Sbiq6wCuS9pmy36FfFUIP3wP6jPrmX7IzpbLa3DdwFc', tab: 'Sheet1'},
+  yearly : {id: '1-Eq_igXfWJf-CVJ9FemEQFr7Mbe6Ut8XtbNG7wgu2bM', tab: 'Sheet1'},
+  water  : {id: '1_x-yP7Wee9h013oB0HBKaXWNdbcVBaYq25TJj42aXZo', tab: 'Sheet1'}
+};
+const GS_LABEL = {monthly: 'Monthly', yearly: 'Yearly', water: 'Water'};
+
+function gsCfg(k){
+  return {
+    id : localStorage.getItem('ntpc_gs_'+k+'_id')  || GS_DEFAULTS[k].id,
+    tab: localStorage.getItem('ntpc_gs_'+k+'_tab') || GS_DEFAULTS[k].tab
+  };
+}
+
+function gsStatus(k, type, msg){
+  const el = document.getElementById('gs-status-'+k); if(!el) return;
+  el.style.color = {ok:'#2e9e5b', error:'#d63031', fetching:'#c07c0a', idle:'#8a94a6'}[type] || '#8a94a6';
+  el.textContent = msg;
+}
+
+// Google Visualization JSON -> 2D array (same shape as an Excel upload)
+function gvizToRaw(resp){
+  if(!resp || !resp.table) throw new Error('No data returned from sheet');
+  const rows = resp.table.rows || [];
+  if(!rows.length) throw new Error('Sheet appears empty — check the tab name');
+  const raw = [(resp.table.cols || []).map(c => c.label || c.id || '')];
+  rows.forEach(row => raw.push((row.c || []).map((cell, ci) => {
+    if(!cell || cell.v === null || cell.v === undefined) return '';
+    if(ci < 2 && typeof cell.f === 'string' && /^\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4}/.test(cell.f.trim())) return cell.f.trim();
+    if(typeof cell.v === 'string' && cell.v.startsWith('Date(')){
+      const p = cell.v.slice(5, -1).split(',').map(Number);
+      return new Date(Date.UTC(p[0], p[1], p[2], p[3]||0, p[4]||0, p[5]||0));
+    }
+    return cell.v;
+  })));
+  return raw;
+}
+
+// JSONP fetch via gviz (no CORS problems)
+function gsJSONP(id, tab){
+  return new Promise((res, rej) => {
+    const cb = 'gs_cb_' + Date.now() + Math.floor(Math.random()*1e4);
+    const s  = document.createElement('script');
+    const done = () => { clearTimeout(t); delete window[cb]; s.remove(); };
+    const t  = setTimeout(() => { done(); rej(new Error('Timeout — check Sheet ID and sharing (Anyone with link)')); }, 30000);
+    window[cb] = r => { done(); res(r); };
+    s.onerror  = () => { done(); rej(new Error('Load failed — check Sheet ID, sharing and tab name')); };
+    s.src = 'https://docs.google.com/spreadsheets/d/' + id + '/gviz/tq?tqx=out:json;responseHandler:' + cb +
+            '&sheet=' + encodeURIComponent(tab) + '&t=' + Date.now();
+    document.head.appendChild(s);
+  });
+}
+
+// Feed the data into the EXISTING processors; returns a short summary
+function gsApply(k, raw){
+  const on = id => document.getElementById('tab-'+id).classList.contains('active');
+
+  if(k === 'water'){
+    WD = processWaterData(raw, 'Google Sheet');
+    const l = document.getElementById('water-loaded');
+    if(l) l.textContent = '✓ Google Sheet (' + WD.rows.length + ' months)';
+    if(on('water')) renderWater();
+    return WD.rows.length + ' months';
+  }
+
+  if(k === 'monthly'){
+    M = processMonthlyData(raw, 'Google Sheet');
+    const l = document.getElementById('monthly-loaded');
+    if(l) l.textContent = '✓ Google Sheet (' + M.totalRows + ' intervals)';
+    saveMonthlyToYearly(M);
+    if(on('monthly')) renderMonthly();
+    if(on('yearly'))  renderYearly();
+    return M.totalRows + ' intervals';
+  }
+
+  // yearly: sheet holds many months -> split by month, store each
+  const g = {};
+  raw.forEach(r => {
+    const d = getDateKey(r[0]); if(!d) return;
+    const key = d.year + '-' + d.month;
+    (g[key] = g[key] || []).push(r);
+  });
+  const keys = Object.keys(g).filter(x => g[x].length >= 10);
+  if(!keys.length) throw new Error('No dated rows found in yearly sheet');
+  // the yearly sheet is the source of truth: drop old/wrong stored months first
+  Object.keys(localStorage).filter(k => k.startsWith('ntpc_fy_')).forEach(k => localStorage.removeItem(k));
+  keys.forEach(x => saveMonthlyToYearly(processMonthlyData(g[x], 'Google Sheet')));
+  const l = document.getElementById('yearly-loaded');
+  if(l) l.textContent = '✓ Google Sheet (' + keys.length + ' months)';
+  if(on('yearly')) renderYearly();
+  return keys.length + ' month(s)';
+}
+
+async function gsFetch(k, manual){
+  const c = gsCfg(k);
+  if(!c.id){ if(manual) gsStatus(k, 'error', 'Enter the Sheet ID first.'); return; }
+  gsStatus(k, 'fetching', 'Fetching...');
+  try{
+    const n = gsApply(k, gvizToRaw(await gsJSONP(c.id, c.tab)));
+    gsStatus(k, 'ok', '✓ ' + n + ' · ' + new Date().toLocaleTimeString('en-IN'));
+    addLog('✓ ' + GS_LABEL[k] + ' Google Sheet loaded — ' + n, 'ok');
+  }catch(e){
+    gsStatus(k, 'error', '✗ ' + e.message);
+    addLog('✗ ' + GS_LABEL[k] + ' sheet: ' + e.message, 'err');
+  }
+}
+
+function gsSave(k){
+  const id  = (document.getElementById('gs-id-'+k).value || '').trim();
+  const tab = (document.getElementById('gs-tab-'+k).value || '').trim() || 'Sheet1';
+  if(!id){ gsStatus(k, 'error', 'Please paste the Sheet ID.'); return; }
+  localStorage.setItem('ntpc_gs_'+k+'_id', id);
+  localStorage.setItem('ntpc_gs_'+k+'_tab', tab);
+  gsFetch(k, true);
+}
+
+function gsClear(k){
+  localStorage.removeItem('ntpc_gs_'+k+'_id');
+  localStorage.removeItem('ntpc_gs_'+k+'_tab');
+  document.getElementById('gs-id-'+k).value = '';
+  gsStatus(k, 'idle', 'Disconnected (manual upload still available).');
+}
+
+// Admin-tab cards — injected under the existing Google Sheet (daily) card
+function buildGsCards(){
+  const anchor = document.getElementById('gsheet-status');
+  if(!anchor || document.getElementById('gs-extra')) return;
+  const host = anchor.parentNode.parentNode;
+  const meta = {
+    monthly: ['📅 MONTHLY DATA — Google Sheet', '#2563eb', '#f0f7ff', '#bfdbfe', 'Same layout as the monthly Excel (timestamps in col A, data from col C)'],
+    yearly : ['📆 YEARLY DATA — Google Sheet',  '#c07c0a', '#fff7ed', '#fed7aa', 'All 15-min rows for the year, same layout — split into months automatically'],
+    water  : ['💧 WATER DATA — Google Sheet',   '#0891b2', '#f0f9ff', '#bae6fd', 'Col A: Month · B: Coal SWC · C: Gas SWC · D: Total SWC']
+  };
+  const box = document.createElement('div');
+  box.id = 'gs-extra';
+  box.innerHTML = Object.keys(meta).map(k => {
+    const m = meta[k], c = gsCfg(k);
+    const inp = 'font-family:var(--mono);font-size:10px;padding:6px 10px;border:1px solid '+m[3]+';border-radius:6px;background:#fff;color:#1a2035;';
+    return `<div style="background:${m[2]};border:1px solid ${m[3]};border-radius:8px;padding:12px 14px;margin-top:10px;">
+      <div style="font-size:11px;font-family:var(--mono);color:${m[1]};font-weight:600;margin-bottom:6px;">${m[0]}</div>
+      <div style="font-size:10px;color:#4a5568;font-family:var(--mono);margin-bottom:8px;">${m[4]}<br/>Sheet must be shared as <strong>Anyone with the link</strong>. Auto-refresh hourly.</div>
+      <div style="display:flex;gap:6px;margin-bottom:6px;">
+        <input id="gs-id-${k}" type="text" value="${c.id}" placeholder="Sheet ID (from /spreadsheets/d/ID/edit)" style="flex:1;${inp}"/>
+        <input id="gs-tab-${k}" type="text" value="${c.tab}" placeholder="Tab" style="width:90px;${inp}"/>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:6px;">
+        <button class="btn btn-g" onclick="gsSave('${k}')" style="flex:1">💾 Save &amp; Fetch</button>
+        <button class="btn" onclick="gsFetch('${k}',true)" style="border-color:${m[1]};color:${m[1]};">🔄 Fetch Now</button>
+        <button class="btn btn-r" onclick="gsClear('${k}')">✕ Clear</button>
+      </div>
+      <div id="gs-status-${k}" style="font-size:10px;font-family:var(--mono);color:#8a94a6;">${c.id ? 'Configured.' : 'Not configured — use manual upload above or paste a Sheet ID.'}</div>
+    </div>`;
+  }).join('');
+  host.appendChild(box);
+}
+
+window.addEventListener('load', () => {
+  buildGsCards();
+  ['monthly', 'yearly', 'water'].forEach((k, i) => {
+    if(gsCfg(k).id) setTimeout(() => gsFetch(k, false), 3000 + i*1500);
+  });
+  setInterval(() => ['monthly', 'yearly', 'water'].forEach(k => gsFetch(k, false)), 60*60*1000);
+});
+// ══════════════════════════════════════════════════════════════
+// DATA AVAILABILITY (unit-wise, Unit ON / Unit OFF) — Monthly & Yearly tabs
+// PASTE at the very end of the last script block (after the Google Sheets patch).
+// Also needs the 4 small edits in processMonthlyData (see chat).
+// ══════════════════════════════════════════════════════════════
+
+// Add up the counts for one unit/parameter over days (monthly) or months (yearly)
+function availTot(arr, p, u){
+  const sum = k => arr.reduce((s, d) => s + (d[p][u][k] || 0), 0);
+  return {
+    total : sum('total'), naOn: sum('naOn'), naOff: sum('naOff'),
+    onTotal: arr.some(d => d[p][u].onTotal === undefined) ? undefined : sum('onTotal')
+  };
+}
+
+function availTable(id, title, get){
+  const card = document.getElementById(id) && document.getElementById(id).closest('.cc');
+  if(!card) return;
+  const two = card.parentNode;                       // the .two grid holding the stats card
+  let box = document.getElementById(id + '-avail');
+  if(!box){
+    box = document.createElement('div');
+    box.id = id + '-avail'; box.className = 'cc';
+    two.parentNode.insertBefore(box, two.nextSibling);
+  }
+  const pc  = (a, b) => b > 0 ? a / b * 100 : null;
+  const col = v => v === null ? '#8a94a6' : v >= 95 ? '#2e9e5b' : v >= 80 ? '#c07c0a' : '#d63031';
+  const cell = (v, a, b) => v === null
+    ? '<td style="color:#8a94a6">—</td>'
+    : `<td><span style="color:${col(v)};font-weight:600">${v.toFixed(1)}%</span><br/><span style="color:#8a94a6;font-size:9px">${a} / ${b}</span></td>`;
+  const plain = v => v === null ? '<td style="color:#8a94a6">—</td>' : `<td>${v.toFixed(1)}%</td>`;
+
+  const rows = [0,1,2,3,4,5].map(u => {
+    const x = get(u);
+    if(!x || !x.total || x.onTotal === undefined)
+      return `<tr><td style="color:${UC[u]}">U${u+1}</td><td colspan="5" style="color:#8a94a6;text-align:center;font-style:italic">— refetch the sheet to calculate</td></tr>`;
+    const onV = x.onTotal - x.naOn,            // valid readings while unit ON
+          offT = x.total - x.onTotal,          // blocks while unit OFF
+          offV = offT - x.naOff,               // valid readings while unit OFF
+          allV = x.total - x.naOn - x.naOff;   // all valid readings
+    return `<tr><td style="color:${UC[u]}">U${u+1}</td>
+      ${cell(pc(allV, x.total), allV, x.total)}
+      ${cell(pc(onV, x.onTotal), onV, x.onTotal)}
+      ${cell(pc(offV, offT), offV, offT)}
+      ${plain(pc(x.onTotal, x.total))}
+      ${plain(pc(offT, x.total))}</tr>`;
+  }).join('');
+
+  box.innerHTML = `<div class="ct" style="margin-bottom:4px">📶 ${title}</div>
+    <div class="cs" style="margin-bottom:10px">Availability = valid readings ÷ blocks · Unit ON = load above 10 MW · Green ≥95% · Amber ≥80% · Red &lt;80%</div>
+    <div style="overflow-x:auto"><table class="tbl">
+      <tr><th>Unit</th><th>Overall availability</th><th>Availability<br/>(Unit ON)</th><th>Availability<br/>(Unit OFF)</th><th>Time Unit ON</th><th>Time Unit OFF</th></tr>
+      ${rows}</table></div>`;
+}
+
+// Hook into the existing renderers (no need to edit them)
+(function(){
+  const rm = renderMonthly, ry = renderYearly;
+  renderMonthly = function(){
+    rm();
+    if(M) availTable('monthlyStatTbl', 'Data Availability — ' + monthlyParam.toUpperCase(), u => availTot(M.dayWise, monthlyParam, u));
+  };
+  renderYearly = function(){
+    ry();
+    const fy = loadYearlyData();
+    if(fy.months.length) availTable('yearlyStatTbl', 'Data Availability — ' + yearlyParam.toUpperCase(), u => availTot(fy.months, yearlyParam, u));
+  };
+})();
 </script>
 </body>
 </html>
