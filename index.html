@@ -303,7 +303,6 @@ body{background:var(--bg);color:var(--t);font-family:var(--sans);font-size:14px;
   <button class="tab" data-tab="load" onclick="sw('load',this)">Unit Load</button>
   <button class="tab" data-tab="alerts" onclick="sw('alerts',this)">🔴 Alerts</button>
   <button class="tab" data-tab="trend" onclick="sw('trend',this)">15-min Trend</button>
-  <button class="tab" data-tab="tags" onclick="sw('tags',this)">PI Tags</button>
   <button class="tab" data-tab="monthly" onclick="sw('monthly',this)">📅 Monthly</button>
   <button class="tab" data-tab="water" onclick="sw('water',this)">💧 Water</button>
   <button class="tab" data-tab="yearly" onclick="sw('yearly',this)">📆 Yearly</button>
@@ -625,15 +624,6 @@ body{background:var(--bg);color:var(--t);font-family:var(--sans);font-size:14px;
     <div style="position:relative;height:280px"><canvas id="trendC"></canvas></div>
   </div>
   <div class="cc"><div class="ct" style="margin-bottom:10px" id="trend-stat-ttl">Unit 1 — Statistics</div><table class="tbl" id="trendStats"></table></div>
-</div>
-
-<!-- TAGS -->
-<div id="tab-tags" class="panel">
-  <div class="cc">
-    <div class="secttitle">All PI Tags — NTPC Dadri (6 Units)</div>
-    <table class="tagtbl"><thead><tr><th>Param</th><th>Unit</th><th>Stage</th><th>PI Tag</th><th>Limit</th><th>Status</th></tr></thead>
-    <tbody id="tagTb"></tbody></table>
-  </div>
 </div>
 
 <!-- MONTHLY ANALYSIS -->
