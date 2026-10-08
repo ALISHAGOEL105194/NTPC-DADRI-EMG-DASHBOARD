@@ -695,17 +695,7 @@ body{background:var(--bg);color:var(--t);font-family:var(--sans);font-size:14px;
         <span style="font-size:11px;font-family:var(--mono);color:#8a94a6;">🔒 Upload restricted to Admin</span>
         <span id="water-loaded" style="font-size:11px;font-family:var(--mono);color:#2e9e5b;"></span>
       </div>
-    </div>
-    <!-- Excel format guide -->
-    <div style="margin-top:12px;background:#fff;border:1px solid #bae6fd;border-radius:8px;padding:10px 14px;font-size:11px;font-family:var(--mono);color:#4a5568;line-height:2;">
-      <strong style="color:#0891b2">Expected Excel format (any sheet):</strong><br/>
-      Row 1: Headers &nbsp;|&nbsp;
-      Col A: Month (Apr, May... or date) &nbsp;|&nbsp;
-      Col B: Coal Station SWC &nbsp;|&nbsp;
-      Col C: Gas Station SWC &nbsp;|&nbsp;
-      Col D: Total SWC<br/>
-      <strong>Units:</strong> m³/MWh &nbsp;·&nbsp; Financial year Apr–Mar &nbsp;·&nbsp; Up to 12 rows
-    </div>
+    </div>  
   </div>
 
   <!-- SWC Trend Chart -->
@@ -762,7 +752,7 @@ body{background:var(--bg);color:var(--t);font-family:var(--sans);font-size:14px;
     <!-- Rainwater charts -->
     <div class="two">
       <div style="margin-bottom:0">
-        <div class="ct" style="margin-bottom:10px;font-size:13px;font-weight:500">Annual Rainwater Harvested (KL)</div>
+        <div class="ct" style="margin-bottom:10px;font-size:13px;font-weight:500">Annual Rainwater Harvested (Lakh KL)</div>
         <div style="position:relative;height:220px"><canvas id="rainBarC"></canvas></div>
       </div>
       <div style="margin-bottom:0">
@@ -3883,6 +3873,592 @@ function availTable(id, title, get){
     const fy = loadYearlyData();
     if(fy.months.length) availTable('yearlyStatTbl', 'Data Availability — ' + yearlyParam.toUpperCase(), u => availTot(fy.months, yearlyParam, u));
   };
+})();
+// ══════════════════════════════════════════════════════════════
+// RAINWATER HARVESTING — Google Sheet fetch (manual entry stays)
+// PASTE at the very end of the last script block, AFTER the Google Sheets patch.
+// ══════════════════════════════════════════════════════════════
+
+// Paste the rainwater Sheet ID here so every colleague loads it automatically
+GS_DEFAULTS.rain = {id: '', tab: 'Sheet1'};
+GS_LABEL.rain = 'Rainwater';
+
+// Sheet layout:  Col A = financial year (e.g. 2025-26)   Col B = rainwater harvested (KL)
+(function(){
+  const ga = gsApply;
+  gsApply = function(k, raw){
+    if(k !== 'rain') return ga(k, raw);
+    let n = 0;
+    raw.forEach(r => {
+      const m = String(r[0]).match(/(20\d{2})/);            // "2025-26" or "FY 2025-26" -> 2025
+      const v = typeof r[1] === 'number' ? r[1] : parseFloat(String(r[1]).replace(/[^0-9.]/g, ''));
+      if(m && !isNaN(v)){ localStorage.setItem('ntpc_rain_' + m[1], v); n++; }
+    });
+    if(!n) throw new Error('No rows found. Col A: financial year (e.g. 2025-26), Col B: KL');
+    if(document.getElementById('tab-water').classList.contains('active')){ initRainInputs(); renderRainwater(); }
+    return n + ' year(s)';
+  };
+})();
+
+function buildRainCard(){
+  const host = document.getElementById('gs-extra');
+  if(!host || document.getElementById('gs-id-rain')) return;
+  const c = gsCfg('rain'), col = '#0891b2', bd = '#bae6fd';
+  const inp = 'font-family:var(--mono);font-size:10px;padding:6px 10px;border:1px solid ' + bd + ';border-radius:6px;background:#fff;color:#1a2035;';
+  const d = document.createElement('div');
+  d.style.cssText = 'background:#f0f9ff;border:1px solid ' + bd + ';border-radius:8px;padding:12px 14px;margin-top:10px;';
+  d.innerHTML = `
+    <div style="font-size:11px;font-family:var(--mono);color:${col};font-weight:600;margin-bottom:6px;">🌧 RAINWATER HARVESTING — Google Sheet</div>
+    <div style="font-size:10px;color:#4a5568;font-family:var(--mono);margin-bottom:8px;">Col A: financial year (e.g. 2025-26) · Col B: rainwater harvested (KL)<br/>Sheet must be shared as <strong>Anyone with the link</strong>. Auto-refresh hourly.</div>
+    <div style="display:flex;gap:6px;margin-bottom:6px;">
+      <input id="gs-id-rain" type="text" value="${c.id}" placeholder="Sheet ID (from /spreadsheets/d/ID/edit)" style="flex:1;${inp}"/>
+      <input id="gs-tab-rain" type="text" value="${c.tab}" placeholder="Tab" style="width:90px;${inp}"/>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:6px;">
+      <button class="btn btn-g" onclick="gsSave('rain')" style="flex:1">💾 Save &amp; Fetch</button>
+      <button class="btn" onclick="gsFetch('rain',true)" style="border-color:${col};color:${col};">🔄 Fetch Now</button>
+      <button class="btn btn-r" onclick="gsClear('rain')">✕ Clear</button>
+    </div>
+    <div id="gs-status-rain" style="font-size:10px;font-family:var(--mono);color:#8a94a6;">${c.id ? 'Configured.' : 'Not configured — enter values manually on the Water tab or paste a Sheet ID.'}</div>`;
+  host.appendChild(d);
+}
+
+window.addEventListener('load', () => {
+  buildRainCard();
+  if(gsCfg('rain').id) setTimeout(() => gsFetch('rain', false), 7500);
+  setInterval(() => gsFetch('rain', false), 60 * 60 * 1000);
+});
+// ══════════════════════════════════════════════════════════════
+// RAINWATER HARVESTING — Google Sheet fetch (manual entry stays)
+// PASTE at the very end of the last script block, AFTER the Google Sheets patch.
+// ══════════════════════════════════════════════════════════════
+
+// Paste the rainwater Sheet ID here so every colleague loads it automatically
+GS_DEFAULTS.rain = {id: '', tab: 'Sheet1'};
+GS_LABEL.rain = 'Rainwater';
+
+// Sheet layout:  Col A = financial year (e.g. 2025-26)   Col B = rainwater harvested (Lakh KL)
+(function(){
+  const ga = gsApply;
+  gsApply = function(k, raw){
+    if(k !== 'rain') return ga(k, raw);
+    let n = 0;
+    raw.forEach(r => {
+      const m = String(r[0]).match(/(20\d{2})/);            // "2025-26" or "FY 2025-26" -> 2025
+      const v = typeof r[1] === 'number' ? r[1] : parseFloat(String(r[1]).replace(/[^0-9.]/g, ''));
+      if(m && !isNaN(v)){ localStorage.setItem('ntpc_rain_' + m[1], v); n++; }
+    });
+    if(!n) throw new Error('No rows found. Col A: financial year (e.g. 2025-26), Col B: Lakh KL');
+    if(document.getElementById('tab-water').classList.contains('active')){ initRainInputs(); renderRainwater(); }
+    return n + ' year(s)';
+  };
+})();
+
+function buildRainCard(){
+  const host = document.getElementById('gs-extra');
+  if(!host || document.getElementById('gs-id-rain')) return;
+  const c = gsCfg('rain'), col = '#0891b2', bd = '#bae6fd';
+  const inp = 'font-family:var(--mono);font-size:10px;padding:6px 10px;border:1px solid ' + bd + ';border-radius:6px;background:#fff;color:#1a2035;';
+  const d = document.createElement('div');
+  d.style.cssText = 'background:#f0f9ff;border:1px solid ' + bd + ';border-radius:8px;padding:12px 14px;margin-top:10px;';
+  d.innerHTML = `
+    <div style="font-size:11px;font-family:var(--mono);color:${col};font-weight:600;margin-bottom:6px;">🌧 RAINWATER HARVESTING — Google Sheet</div>
+    <div style="font-size:10px;color:#4a5568;font-family:var(--mono);margin-bottom:8px;">Col A: financial year (e.g. 2025-26) · Col B: rainwater harvested (Lakh KL)<br/>Sheet must be shared as <strong>Anyone with the link</strong>. Auto-refresh hourly.</div>
+    <div style="display:flex;gap:6px;margin-bottom:6px;">
+      <input id="gs-id-rain" type="text" value="${c.id}" placeholder="Sheet ID (from /spreadsheets/d/ID/edit)" style="flex:1;${inp}"/>
+      <input id="gs-tab-rain" type="text" value="${c.tab}" placeholder="Tab" style="width:90px;${inp}"/>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:6px;">
+      <button class="btn btn-g" onclick="gsSave('rain')" style="flex:1">💾 Save &amp; Fetch</button>
+      <button class="btn" onclick="gsFetch('rain',true)" style="border-color:${col};color:${col};">🔄 Fetch Now</button>
+      <button class="btn btn-r" onclick="gsClear('rain')">✕ Clear</button>
+    </div>
+    <div id="gs-status-rain" style="font-size:10px;font-family:var(--mono);color:#8a94a6;">${c.id ? 'Configured.' : 'Not configured — enter values manually on the Water tab or paste a Sheet ID.'}</div>`;
+  host.appendChild(d);
+}
+
+window.addEventListener('load', () => {
+  buildRainCard();
+  if(gsCfg('rain').id) setTimeout(() => gsFetch('rain', false), 7500);
+  setInterval(() => gsFetch('rain', false), 60 * 60 * 1000);
+});
+// ══════════════════════════════════════════════════════════════
+// OVERVIEW REDESIGN — KPI tiles + ring gauges + modern cards
+// PASTE at the very end of the last script block (before the closing script tag).
+// Nothing else needs editing; it replaces buildOverviewCards() and adds styling.
+// ══════════════════════════════════════════════════════════════
+
+(function(){
+  const s = document.createElement('style');
+  s.textContent = `
+  body{background:linear-gradient(180deg,#e8eefb 0,#f5f6fa 340px);}
+  .hdr{border-top:3px solid #2563eb;}
+  .cc,.ub{border:0!important;border-radius:16px!important;box-shadow:0 2px 14px rgba(30,50,100,.09)!important;}
+  .ub{transition:transform .2s,box-shadow .2s;padding:16px!important;}
+  .ub:hover{transform:translateY(-3px);box-shadow:0 10px 26px rgba(30,50,100,.15)!important;}
+  .tab.active{background:rgba(37,99,235,.08);border-radius:8px 8px 0 0;}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;}
+  .kpi{border-radius:16px;padding:16px 18px;color:#fff;box-shadow:0 6px 18px rgba(30,50,100,.18);}
+  .k-l{font:500 10px var(--mono);letter-spacing:.09em;text-transform:uppercase;opacity:.85;}
+  .k-v{font:600 28px var(--mono);margin:6px 0 2px;}
+  .k-s{font-size:11px;opacity:.9;}
+  .uc-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+  .chip{font:600 9px var(--mono);letter-spacing:.06em;padding:3px 9px;border-radius:20px;}
+  .rings{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;text-align:center;}
+  .ring{position:relative;width:76px;height:76px;margin:0 auto;}
+  .ring span{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font:600 12px var(--mono);}
+  .ring small{font:400 8px var(--mono);color:#8a94a6;}
+  .rl{font:500 10px var(--mono);color:#4a5568;margin-top:2px;}
+  .ldbar{height:8px;border-radius:6px;background:#eef1f7;overflow:hidden;margin-top:14px;}
+  .ldbar i{display:block;height:100%;border-radius:6px;}
+  .ld-t{font:400 10px var(--mono);color:#8a94a6;margin-top:5px;display:flex;justify-content:space-between;}
+  @media(max-width:900px){.kpis{grid-template-columns:1fr 1fr;}}
+  `;
+  document.head.appendChild(s);
+})();
+
+const ABSURD_X = 10;   // SOx/PM/NOx above 10 x the limit (or load above 120% of rating) is shown as N/A
+
+function ovRing(v, lim, lbl){
+  const na = isNA(v), c = clr(st(v, lim)), C = 188.5;
+  const p = na ? 0 : Math.min(100, v / lim * 100);
+  return `<div><div class="ring"><svg viewBox="0 0 76 76" width="76" height="76">
+    <circle cx="38" cy="38" r="30" fill="none" stroke="#eef1f7" stroke-width="7"/>
+    <circle cx="38" cy="38" r="30" fill="none" stroke="${c}" stroke-width="7" stroke-linecap="round"
+      stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - p / 100)}" transform="rotate(-90 38 38)"/></svg>
+    <span>${na ? 'N/A' : Math.round(v)}<small>${na ? '' : Math.round(p) + '% of limit'}</small></span></div>
+    <div class="rl">${lbl}</div></div>`;
+}
+
+buildOverviewCards = function(){
+  document.getElementById('yday-date').textContent = dataLoaded ? YDAY : 'Not loaded';
+  const el = document.getElementById('ov-cards');
+  let k = document.getElementById('ov-kpi');
+  if(!k){ k = document.createElement('div'); k.id = 'ov-kpi'; k.className = 'kpis'; el.parentNode.insertBefore(k, el); }
+  if(!dataLoaded){
+    k.innerHTML = '';
+    el.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--t3);font-family:var(--mono)">No data loaded. Admin must import the daily CEMS Excel file.</div>';
+    return;
+  }
+  const hasLive = D_LIVE.sox.some(v => !isNA(v) && v > 0);
+  document.getElementById('ov-live-label').textContent = hasLive ? '🟢 Current reading' : '📅 Latest available';
+  document.getElementById('ov-live-time').textContent = latestRowTimeGlobal ? '(' + latestRowTimeGlobal + ')' : '';
+
+  // a missing, negative or absurd reading becomes N/A (never yesterday's value); 0 is a real reading
+  const pick = (live, max) => (isNA(live) || live < 0 || live > max) ? null : live;
+  const U = [0,1,2,3,4,5].map(u => ({
+    u, sv: pick(D_LIVE.sox[u], SOX_LIM[u] * ABSURD_X), pv: pick(D_LIVE.pm[u], PM_LIM[u] * ABSURD_X),
+    nv: pick(D_LIVE.nox[u], NOX_LIM[u] * ABSURD_X),   lv: pick(D_LIVE.load[u], UCAP[u] * 1.2)
+  }));
+
+  // KPI tiles
+  const load = U.reduce((s, x) => s + (isNA(x.lv) ? 0 : x.lv), 0), cap = UCAP.reduce((a, b) => a + b, 0);
+  const running = U.filter(x => !isNA(x.lv) && x.lv > 10).length;
+  let crit = 0, warn = 0;
+  U.forEach(x => [[x.sv, SOX_LIM[x.u]], [x.pv, PM_LIM[x.u]], [x.nv, NOX_LIM[x.u]]].forEach(([v, l]) => {
+    const t = st(v, l); if(t === 'critical') crit++; else if(t === 'warning') warn++;
+  }));
+  let tot = 0, exc = 0;
+  [['sox', SOX_LIM], ['pm', PM_LIM], ['nox', NOX_LIM]].forEach(([p, L]) =>
+    D[p].forEach((a, u) => a.forEach(v => { if(!isNA(v)){ tot++; if(v >= L[u]) exc++; } })));
+  const comp = tot ? (100 - exc / tot * 100) : null;
+  const tile = (bg, l, v, s) => `<div class="kpi" style="background:${bg}"><div class="k-l">${l}</div><div class="k-v">${v}</div><div class="k-s">${s}</div></div>`;
+  k.innerHTML =
+    tile('linear-gradient(135deg,#1d4ed8,#3b82f6)', 'Plant load', Math.round(load) + ' MW', Math.round(load / cap * 100) + '% of ' + cap + ' MW') +
+    tile('linear-gradient(135deg,#0f766e,#14b8a6)', 'Units running', running + ' / 6', 'Stage 1: ' + U.slice(0,4).filter(x => x.lv > 10).length + ' · Stage 2: ' + U.slice(4).filter(x => x.lv > 10).length) +
+    tile(crit ? 'linear-gradient(135deg,#b91c1c,#ef4444)' : warn ? 'linear-gradient(135deg,#b45309,#f59e0b)' : 'linear-gradient(135deg,#15803d,#22c55e)',
+         'Live alerts', crit ? crit + ' exceeding' : warn ? warn + ' warning' : 'All normal', crit + ' exceeding · ' + warn + ' near limit') +
+    tile('linear-gradient(135deg,#6d28d9,#8b5cf6)', 'Day compliance', comp === null ? 'N/A' : comp.toFixed(1) + '%', exc + ' blocks above limit (' + YDAY + ')');
+
+  // Unit cards
+  el.innerHTML = U.map(x => {
+    const ss = st(x.sv, SOX_LIM[x.u]), ps = st(x.pv, PM_LIM[x.u]), ns = st(x.nv, NOX_LIM[x.u]);
+    const sts = [ss, ps, ns].filter(t => t !== 'na');
+    const worst = sts.includes('critical') ? 'critical' : sts.includes('warning') ? 'warning' : sts.length ? 'normal' : 'na';
+    const wc = clr(worst), lbl = {critical: 'CRITICAL', warning: 'WARNING', normal: 'ALL NORMAL', na: 'NO DATA'}[worst];
+    const lp = isNA(x.lv) ? 0 : Math.min(100, Math.round(x.lv / UCAP[x.u] * 100));
+    return `<div class="ub" style="border-top:4px solid ${UC[x.u]}!important">
+      <div class="uc-top">
+        <div style="display:flex;align-items:center;gap:7px"><span class="ubt u${x.u + 1}" style="font-size:14px">Unit ${x.u + 1}</span>
+          <span class="stg-tag ${STAGE[x.u] === 'STG1' ? 's1' : 's2'}">${STAGE[x.u]}</span></div>
+        <span class="chip" style="background:${wc}1a;color:${wc}">${lbl}</span></div>
+      <div class="rings">${ovRing(x.sv, SOX_LIM[x.u], 'SOx')}${ovRing(x.pv, PM_LIM[x.u], 'PM')}${ovRing(x.nv, NOX_LIM[x.u], 'NOx')}</div>
+      <div class="ldbar"><i style="width:${lp}%;background:${UC[x.u]}"></i></div>
+      <div class="ld-t"><span>Load ${isNA(x.lv) ? 'N/A' : Math.round(x.lv) + ' MW'}</span><span>${lp}% rated · ${latestRowTimeGlobal}</span></div></div>`;
+  }).join('');
+};
+// ══════════════════════════════════════════════════════════════
+// LARGER FONTS + MODERN LOOK FOR ALL TABS
+// PASTE at the very end of the last script block, AFTER overview_patch.js.
+// ══════════════════════════════════════════════════════════════
+
+(function(){
+  const s = document.createElement('style');
+  s.textContent = `
+  body{font-size:15px;}
+  .htitle{font-size:19px!important;} .hsub{font-size:12px!important;}
+  .tab{font-size:13px;padding:13px 17px;}
+  .ct{font-size:16px!important;font-weight:600;} .cs{font-size:12px!important;}
+  .leg{font-size:12px!important;}
+  .cc{border-left:4px solid #dbe5fb!important;padding:16px 20px;}
+  .utab{font-size:12px!important;padding:6px 16px!important;border-radius:20px!important;font-weight:500;}
+  .cc table,.tbl,.tagtbl{font-size:13px!important;}
+  .tbl th,.tagtbl th{font-size:11px!important;font-weight:600;color:#4a5568;letter-spacing:.06em;}
+  .tbl td,.tbl th{padding:8px 6px!important;}
+  .tbl tr:nth-child(even) td{background:#f8faff;}
+  .tbl tr:hover td{background:#eef3ff;}
+  .badge{font-size:11px!important;padding:3px 9px!important;border-radius:20px!important;}
+  .as{font-size:14px!important;padding:11px 16px!important;border-radius:12px!important;}
+  .yday-badge{font-size:13px!important;border-radius:20px!important;}
+  .secttitle{font-size:12px!important;}
+  /* Overview: bigger */
+  .k-l{font-size:12px!important;} .k-v{font-size:34px!important;} .k-s{font-size:13px!important;}
+  .ring{width:98px!important;height:98px!important;} .ring svg{width:100%;height:100%;}
+  .ring span{font-size:17px!important;} .ring small{font-size:10px!important;}
+  .rl{font-size:13px!important;} .ld-t{font-size:12px!important;} .chip{font-size:11px!important;}
+  .ub .ubt{font-size:18px!important;} .stg-tag{font-size:11px!important;}
+  `;
+  document.head.appendChild(s);
+})();
+
+const kTile = (bg, l, v, s) => `<div class="kpi" style="background:${bg}"><div class="k-l">${l}</div><div class="k-v">${v}</div><div class="k-s">${s}</div></div>`;
+const kGr = c => `linear-gradient(135deg,${c})`;
+
+function pStats(p, L){
+  let tot = 0, exc = 0, warn = 0, best = null;
+  D[p].forEach((a, u) => a.forEach(v => {
+    if(isNA(v)) return; tot++;
+    if(v >= L[u]) exc++; else if(v >= L[u] * 0.8) warn++;
+    const r = v / L[u]; if(!best || r > best.r) best = {r, u, v};
+  }));
+  return {tot, exc, warn, best, comp: tot ? 100 - exc / tot * 100 : null};
+}
+
+function putKpis(id, html){
+  const panel = document.getElementById('tab-' + id); if(!panel) return;
+  let k = document.getElementById('kpi-' + id);
+  if(!k){ k = document.createElement('div'); k.id = 'kpi-' + id; k.className = 'kpis'; panel.insertBefore(k, panel.firstChild); }
+  k.innerHTML = html;
+}
+
+function buildTabKpis(){
+  // SOx / PM / NOx tabs
+  const P = {sox: [SOX_LIM, 'SOx', '#be123c,#fb7185'], pm: [PM_LIM, 'PM', '#b45309,#fbbf24'], nox: [NOX_LIM, 'NOx', '#6d28d9,#a78bfa']};
+  const S = {};
+  Object.keys(P).forEach(p => {
+    const [L, n, g] = P[p], s = S[p] = pStats(p, L);
+    putKpis(p,
+      kTile(kGr('#1d4ed8,#60a5fa'), n + ' compliance', s.comp == null ? 'N/A' : s.comp.toFixed(1) + '%', s.tot + ' valid blocks') +
+      kTile(kGr(s.exc ? '#b91c1c,#f87171' : '#15803d,#4ade80'), 'Exceeded', s.exc, 'blocks at or above limit') +
+      kTile(kGr('#b45309,#fbbf24'), 'Near limit', s.warn, '80–100% of limit') +
+      kTile(kGr(g), 'Peak reading', s.best ? s.best.v : 'N/A', s.best ? 'Unit ' + (s.best.u + 1) + ' · ' + Math.round(s.best.r * 100) + '% of limit' : ''));
+  });
+
+  // Alerts tab
+  const te = S.sox.exc + S.pm.exc + S.nox.exc, tw = S.sox.warn + S.pm.warn + S.nox.warn;
+  putKpis('alerts',
+    kTile(kGr(te ? '#b91c1c,#f87171' : '#15803d,#4ade80'), 'Total exceedances', te, 'all parameters, all units') +
+    kTile(kGr('#be123c,#fb7185'), 'SOx', S.sox.exc, S.sox.warn + ' near limit') +
+    kTile(kGr('#b45309,#fbbf24'), 'PM', S.pm.exc, S.pm.warn + ' near limit') +
+    kTile(kGr('#6d28d9,#a78bfa'), 'NOx', S.nox.exc, S.nox.warn + ' near limit'));
+
+  // Coal tab
+  const cn = a => a.filter(v => !isNA(v)), U6 = [0,1,2,3,4,5];
+  const lastC = U6.map(u => last(D.coal[u])), nowC = lastC.reduce((s, v) => s + (isNA(v) ? 0 : v), 0);
+  const s1 = [0,1,2,3].reduce((s, u) => s + (avg(D.coal[u]) || 0), 0) / 4, s2 = [4,5].reduce((s, u) => s + (avg(D.coal[u]) || 0), 0) / 2;
+  const pk = U6.map(u => [Math.max(0, ...cn(D.coal[u])), u]).sort((a, b) => b[0] - a[0])[0];
+  putKpis('coal',
+    `<div class="kpi" style="background:${kGr('#1d4ed8,#60a5fa')}"><div class="k-l">Average coal flow</div>
+       <div style="display:flex;gap:26px;margin:8px 0 2px">
+         <div><div class="k-s">Stage 1</div><div class="k-v" style="margin:2px 0">${Math.round(s1)}<small style="font-size:13px"> T/hr</small></div></div>
+         <div><div class="k-s">Stage 2</div><div class="k-v" style="margin:2px 0">${Math.round(s2)}<small style="font-size:13px"> T/hr</small></div></div>
+       </div><div class="k-s">average per unit · U1–U4 / U5–U6</div></div>` +
+    kTile(kGr('#b45309,#fbbf24'), 'Highest unit peak', Math.round(pk[0]) + ' T/hr', 'Unit ' + (pk[1] + 1)) +
+    kTile(kGr('#15803d,#4ade80'), 'Units on coal', lastC.filter(v => !isNA(v) && v > 0).length + ' / 6', 'at latest reading'));
+  document.getElementById('kpi-coal').style.gridTemplateColumns = 'repeat(3,1fr)';
+
+  // Load tab
+  const cap = UCAP.reduce((a, b) => a + b, 0), avgL = U6.reduce((s, u) => s + (avg(D.load[u]) || 0), 0);
+  const pl = U6.map(u => [Math.max(0, ...cn(D.load[u])), u]).sort((a, b) => b[0] - a[0])[0];
+  putKpis('load',
+    kTile(kGr('#1d4ed8,#60a5fa'), 'Average plant load', Math.round(avgL) + ' MW', 'sum of unit averages') +
+    kTile(kGr('#6d28d9,#a78bfa'), 'Plant load factor', (avgL / cap * 100).toFixed(1) + '%', 'of ' + cap + ' MW installed') +
+    kTile(kGr('#b45309,#fbbf24'), 'Highest unit peak', Math.round(pl[0]) + ' MW', 'Unit ' + (pl[1] + 1)) +
+    kTile(kGr('#15803d,#4ade80'), 'Units running', U6.filter(u => (last(D.load[u]) || 0) > 10).length + ' / 6', 'at latest reading'));
+}
+
+(function(){
+  const ra = renderAll;
+  renderAll = function(){ ra(); if(dataLoaded) buildTabKpis(); };
+  if(dataLoaded) buildTabKpis();
+})();// ══════════════════════════════════════════════════════════════
+// CLEARER MAIN TABS — bigger pill buttons, icons, sticky bar
+// PASTE at the very end of the last script block, AFTER modern_tabs_patch.js.
+// ══════════════════════════════════════════════════════════════
+
+(function(){
+  const s = document.createElement('style');
+  s.textContent = `
+  .tabs{padding:10px 20px!important;gap:8px;flex-wrap:wrap;background:#fff;border-bottom:0!important;box-shadow:0 3px 12px rgba(30,50,100,.10);}
+  .tab{font-size:15px!important;font-weight:600!important;padding:10px 20px!important;border-radius:999px!important;
+       border:1.5px solid #d6def0!important;background:#f3f6fd!important;color:#2b3a67!important;margin:0;transition:all .15s;}
+  .tab:hover{background:#e4ecff!important;color:#1d4ed8!important;transform:translateY(-1px);}
+  .tab.active{background:linear-gradient(135deg,#1d4ed8,#3b82f6)!important;color:#fff!important;
+              border-color:transparent!important;box-shadow:0 4px 12px rgba(37,99,235,.35);}
+  .tab.admin-tab{background:#fff5f5!important;color:#d63031!important;border-color:#f3c4c4!important;}
+  .tab.admin-tab.active{background:linear-gradient(135deg,#b91c1c,#ef4444)!important;color:#fff!important;}
+  #mob-nav button{font-size:12px!important;font-weight:600;}
+  @media(max-width:900px){
+    .tabs{flex-wrap:nowrap;padding:8px 10px!important;}
+    .tab{font-size:14px!important;padding:9px 16px!important;}
+  }`;
+  document.head.appendChild(s);
+
+  // Icons (only added if the tab does not already start with one)
+  const icons = {overview:'📊', sox:'🏭', pm:'🌫️', nox:'🧪', coal:'⚫', load:'⚡', trend:'📈', tags:'🏷️'};
+  Object.keys(icons).forEach(k => {
+    const b = document.querySelector('.tab[data-tab="' + k + '"]');
+    if(b && !/^[^\x00-\x7F]/.test(b.textContent.trim())) b.textContent = icons[k] + ' ' + b.textContent.trim();
+  });
+
+  // Keep the tab bar visible just below the header while scrolling
+  function stick(){
+    const h = document.querySelector('.hdr'), t = document.querySelector('.tabs');
+    if(!h || !t) return;
+    t.style.position = 'sticky'; t.style.top = h.offsetHeight + 'px'; t.style.zIndex = 90;
+  }
+  stick();
+  window.addEventListener('resize', stick);
+  window.addEventListener('load', stick);
+})();
+// ══════════════════════════════════════════════════════════════
+// RAINWATER FIX — (1) "Update Chart" only for admin, (2) missing year = no data, not 0
+// PASTE at the very end of the last script block, AFTER the other patches.
+// ══════════════════════════════════════════════════════════════
+
+// (1) Show the "Update Chart" button only when logged in as admin
+function syncRainBtn(){
+  document.querySelectorAll('button[onclick="renderRainwater()"]')
+    .forEach(b => b.style.display = isAdmin ? '' : 'none');
+}
+(function(){
+  const tl = tryLogin, al = adminLogout;
+  tryLogin     = function(){ tl(); syncRainBtn(); };
+  adminLogout  = function(){ al(); syncRainBtn(); };
+  syncRainBtn();
+})();
+
+// Number format for Lakh KL values (2 decimals, no rounding to whole numbers)
+const rainF = n => (+(+n).toFixed(2)).toLocaleString();
+
+// (2) Clean old auto-saved zeros, then redraw with missing years left empty
+Object.keys(localStorage)
+  .filter(k => k.startsWith('ntpc_rain_') && parseFloat(localStorage.getItem(k)) === 0)
+  .forEach(k => localStorage.removeItem(k));
+
+renderRainwater = function(){
+  const now = new Date(), fyStart = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  const labels = [], values = [];
+  for(let i = 4; i >= 0; i--){
+    const fy = fyStart - i, el = document.getElementById('rain-' + fy);
+    const raw = (el && el.value !== '') ? el.value : localStorage.getItem('ntpc_rain_' + fy);
+    const v = parseFloat(raw);
+    const has = !isNaN(v) && v > 0;                       // blank or 0 = no data
+    labels.push(has ? 'FY ' + fy + '-' + String(fy + 1).slice(2) : ['FY ' + fy + '-' + String(fy + 1).slice(2), 'no data']);
+    values.push(has ? v : null);
+  }
+
+  dc('rainBarC');
+  CH.rainBarC = new Chart(document.getElementById('rainBarC'), {
+    type: 'bar',
+    data: {labels, datasets: [
+      {label: 'Rainwater Harvested (Lakh KL)', data: values, backgroundColor: 'rgba(8,145,178,0.75)',
+       borderColor: 'rgba(8,145,178,1)', borderWidth: 1, borderRadius: 5},
+      {label: 'Trend', type: 'line', data: values, borderColor: 'rgba(46,158,91,0.8)', backgroundColor: 'transparent',
+       borderWidth: 2.5, pointRadius: 5, pointBackgroundColor: '#2e9e5b', tension: 0.3, fill: false, spanGaps: true}
+    ]},
+    options: {responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: {display: true, labels: {color: '#4a5568', font: {size: 11, family: "'IBM Plex Mono'"}, boxWidth: 12, padding: 10}},
+        tooltip: {backgroundColor: 'rgba(15,20,35,0.92)', titleColor: '#fff', bodyColor: '#c8d0e0', borderColor: 'rgba(0,0,0,0.15)', borderWidth: 1,
+          callbacks: {label: c => c.dataset.label + ': ' + rainF(c.parsed.y) + ' Lakh KL'}}},
+      scales: {
+        x: {grid: {display: false}, ticks: {color: '#64748b', font: {size: 11}}},
+        y: {grid: {color: 'rgba(0,0,0,0.06)'}, ticks: {color: '#64748b', font: {size: 10}},
+            title: {display: true, text: 'Rainwater Harvested (Lakh KL)', color: '#64748b', font: {size: 10}}, min: 0}}}
+  });
+
+  // Statistics use only the years that have data
+  const names = labels.map(l => Array.isArray(l) ? l[0] : l);
+  const idx = values.map((v, i) => v !== null ? i : -1).filter(i => i >= 0);
+  const tbl = document.getElementById('rainStatTbl');
+  if(!idx.length){
+    tbl.innerHTML = '<tr><td style="color:#8a94a6;font-style:italic">No rainwater data available yet.</td></tr>';
+    return;
+  }
+  const vals = idx.map(i => values[i]), total = vals.reduce((a, b) => a + b, 0);
+  const maxV = Math.max(...vals), minV = Math.min(...vals), first = vals[0], lastV = vals[vals.length - 1];
+  const trend = vals.length < 2 ? '➡ Not enough years' : lastV > first ? '📈 Increasing' : lastV < first ? '📉 Decreasing' : '➡ Stable';
+  const growth = vals.length > 1 ? +(((lastV - first) / first) * 100).toFixed(1) : null;
+  tbl.innerHTML = `
+    <tr><th colspan="2" style="color:#0891b2">Rainwater Harvesting Summary</th></tr>
+    <tr><td style="color:#4a5568">Total (${vals.length} yr with data)</td><td style="font-weight:600;color:#0891b2">${rainF(total)} Lakh KL</td></tr>
+    <tr><td style="color:#4a5568">Annual Average</td><td style="font-weight:600">${rainF(total / vals.length)} Lakh KL</td></tr>
+    <tr><td style="color:#4a5568">Best Year</td><td style="font-weight:600;color:#2e9e5b">${names[values.indexOf(maxV)]} (${rainF(maxV)} Lakh KL)</td></tr>
+    <tr><td style="color:#4a5568">Lowest Year</td><td style="font-weight:600;color:#c07c0a">${rainF(minV)} Lakh KL</td></tr>
+    <tr><td style="color:#4a5568">Trend</td><td style="font-weight:600">${trend}</td></tr>
+    ${growth !== null ? `<tr><td style="color:#4a5568">Change (${names[idx[0]]} → ${names[idx[idx.length - 1]]})</td><td style="font-weight:600;color:${growth >= 0 ? '#2e9e5b' : '#d63031'}">${growth >= 0 ? '+' : ''}${growth}%</td></tr>` : ''}`;
+};
+
+// Units: the rainwater data is in Lakh KL — update the labels on the Water tab
+(function(){
+  const ii = initRainInputs;
+  initRainInputs = function(){
+    ii();
+    document.querySelectorAll('#rain-inputs div').forEach(d => { if(d.textContent.trim() === 'KL') d.textContent = 'Lakh KL'; });
+  };
+  document.querySelectorAll('#tab-water .cs').forEach(e => { e.innerHTML = e.innerHTML.replace('(in KL)', '(in Lakh KL)'); });
+})();
+(function(){
+  const sb = showSB;
+  showSB = function(t, m){
+    if(t === 'err' && /Fetch failed/.test(String(m)) && !isAdmin) return;
+    sb(t, m);
+  };
+})();
+// ══════════════════════════════════════════════════════════════
+// OVERVIEW — "Day compliance" tile uses the CURRENT day's readings
+// PASTE at the very end of the last script block, AFTER overview_patch.js.
+// ══════════════════════════════════════════════════════════════
+
+let TODAY = null;
+
+function todayNum(v){
+  if(typeof v === 'number') return isNaN(v) ? null : v;
+  if(v === null || v === undefined || v === '') return null;
+  const s = String(v).trim();
+  if(s.startsWith('[') || /no good|shutdown|bad input|calc/i.test(s)) return null;
+  const n = parseFloat(s); return isNaN(n) ? null : n;
+}
+
+// Count today's readings (date of the latest row that has data) against the CPCB limits
+function buildToday(raw){
+  const rows = raw.filter(r => r && getDateKey(r[0]));
+  let li = -1;
+  for(let i = rows.length - 1; i >= 0 && li < 0; i--){
+    for(let c = 2; c < 32; c++){
+      const v = todayNum(rows[i][c]);
+      if(v !== null && v > 0){ li = i; break; }
+    }
+  }
+  if(li < 0){ TODAY = null; return; }
+  const key = getDateKey(rows[li][0]).dateStr;
+  let tot = 0, exc = 0;
+  rows.filter(r => getDateKey(r[0]).dateStr === key).forEach(r => {
+    for(let u = 0; u < 6; u++){
+      [[2, SOX_LIM], [3, PM_LIM], [4, NOX_LIM]].forEach(([o, L]) => {
+        const v = todayNum(r[2 + u * 5 + o]);
+        if(v !== null){ tot++; if(v >= L[u]) exc++; }
+      });
+    }
+  });
+  TODAY = {tot, exc, comp: tot ? 100 - exc / tot * 100 : null, date: key};
+}
+
+
+// Newest available reading per unit and parameter (looks back up to 4 rows = 1 hour),
+// so a half-empty latest row never makes the Overview fall back to yesterday's data
+function liveFromRaw(raw){
+  const rows = raw.filter(r => r && getDateKey(r[0]));
+  if(!rows.length) return;
+  const names = ['load', 'coal', 'sox', 'pm', 'nox'];
+  const live = {load: [], coal: [], sox: [], pm: [], nox: []};
+  let newest = -1;
+  for(let u = 0; u < 6; u++){
+    names.forEach((n, k) => {
+      let val = null, tried = 0;
+      for(let i = rows.length - 1; i >= 0 && tried < 4; i--, tried++){
+        const v = todayNum(rows[i][2 + u * 5 + k]);
+        if(v !== null){ val = v; if(i > newest) newest = i; break; }
+      }
+      live[n].push(val);
+    });
+  }
+  if(newest < 0) return;
+  const c = rows[newest][0], pad = x => String(x).padStart(2, '0');
+  let lbl = '--';
+  if(c instanceof Date) lbl = pad(c.getUTCHours()) + ':' + pad(c.getUTCMinutes());
+  else if(typeof c === 'number' && c > 40000){ const m = Math.round((c % 1) * 1440); lbl = pad(Math.floor(m / 60) % 24) + ':' + pad(m % 60); }
+  else { const m = String(c).match(/(\d{1,2}):(\d{2})/); if(m) lbl = pad(m[1]) + ':' + m[2]; }
+  D_LIVE = live;
+  latestRowTimeGlobal = lbl;
+}
+
+
+// ── Overview line charts: show TODAY (00:00 → 23:45, 96 slots; future slots stay empty) ──
+let TODAY_S = null;
+
+function slotOf(c){
+  let h = null, m = null;
+  if(c instanceof Date){ h = c.getUTCHours(); m = c.getUTCMinutes(); }
+  else if(typeof c === 'number' && c > 40000){ const t = Math.round((c % 1) * 1440); h = Math.floor(t / 60) % 24; m = t % 60; }
+  else { const x = String(c).match(/(\d{1,2}):(\d{2})/); if(x){ h = +x[1]; m = +x[2]; } }
+  return h === null ? -1 : h * 4 + Math.floor(m / 15);
+}
+
+function buildTodaySeries(raw){
+  if(!TODAY){ TODAY_S = null; return; }
+  const S = {load: [], sox: [], pm: [], nox: []};
+  for(let u = 0; u < 6; u++) Object.keys(S).forEach(k => S[k].push(Array(96).fill(null)));
+  const off = {load: 0, sox: 2, pm: 3, nox: 4};
+  raw.filter(r => r && getDateKey(r[0]) && getDateKey(r[0]).dateStr === TODAY.date).forEach(r => {
+    const i = slotOf(r[0]); if(i < 0 || i > 95) return;
+    for(let u = 0; u < 6; u++) Object.keys(off).forEach(k => {
+      const v = todayNum(r[2 + u * 5 + off[k]]); if(v === null) return;
+      const max = k === 'load' ? UCAP[u] * 1.2 : (k === 'sox' ? SOX_LIM : k === 'pm' ? PM_LIM : NOX_LIM)[u] * ABSURD_X;
+      if(v < 0 || v > max) return;                       // absurd reading -> left out
+      S[k][u][i] = v;
+    });
+  });
+  TODAY_S = S;
+}
+
+function drawTodayCharts(){
+  if(!TODAY_S || !TODAY) return;
+  const labels = Array.from({length: 96}, (_, i) => String(Math.floor(i / 4)).padStart(2, '0') + ':' + String((i % 4) * 15).padStart(2, '0'));
+  const d = new Date(TODAY.date + 'T00:00:00').toLocaleDateString('en-IN', {day: '2-digit', month: 'short'});
+  [['sox', 'SOx'], ['pm', 'PM'], ['nox', 'NOx'], ['load', 'Unit Load']].forEach(([k, t]) => {
+    const el = document.getElementById('ov-' + k); if(!el) return;
+    dc('ov-' + k);
+    CH['ov-' + k] = new Chart(el, {type: 'line', options: {...bO},
+      data: {labels, datasets: TODAY_S[k].map((a, u) => ({label: 'U' + (u + 1), data: a, borderColor: UC[u], tension: 0.2, pointRadius: 0, borderWidth: 1.5, fill: false}))}});
+    const card = el.closest('.cc'), ct = card && card.querySelector('.ct');
+    if(ct) ct.textContent = t + ' — All 6 Units · Today (' + d + ')';
+  });
+}
+
+function updateDayTile(){
+  const t = document.querySelectorAll('#ov-kpi .kpi')[3];
+  if(!t || !TODAY) return;
+  const lbl = new Date(TODAY.date + 'T00:00:00').toLocaleDateString('en-IN', {day: '2-digit', month: 'short', year: 'numeric'});
+  t.querySelector('.k-l').textContent = 'Day compliance · today';
+  t.querySelector('.k-v').textContent = TODAY.comp === null ? 'N/A' : TODAY.comp.toFixed(1) + '%';
+  t.querySelector('.k-s').textContent = TODAY.exc + ' of ' + TODAY.tot + ' readings above limit (' + lbl + ')';
+}
+
+(function(){
+  const pe = processExcelData;
+  processExcelData = function(raw, sn, src){
+    pe(raw, sn, src);                       // original loader (unchanged)
+    try{ buildToday(raw); }catch(e){ console.warn('buildToday:', e); }
+    try{ liveFromRaw(raw); }catch(e){ console.warn('liveFromRaw:', e); }
+    try{ buildTodaySeries(raw); }catch(e){ console.warn('buildTodaySeries:', e); }
+    buildOverviewCards();                   // redraw tiles with today's figure
+  };
+  const bo = buildOverviewCards;
+  buildOverviewCards = function(){ bo(); updateDayTile(); };
+  const ra = renderAll;
+  renderAll = function(){ ra(); setTimeout(drawTodayCharts, 250); };   // after the original charts are drawn
 })();
 </script>
 </body>
