@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/><meta name="mobile-web-app-capable" content="yes"/><meta name="apple-mobile-web-app-capable" content="yes"/><meta name="apple-mobile-web-app-title" content="NTPC CEMS"/>
-<title>NTPC Dadri — Emission Monitor</title>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/><meta name="mobile-web-app-capable" content="yes"/><meta name="apple-mobile-web-app-capable" content="yes"/><meta name="apple-mobile-web-app-title" content="Dadri Environment"/>
+<title>NTPC Dadri — Environment Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -259,7 +259,7 @@ body{background:var(--bg);color:var(--t);font-family:var(--sans);font-size:14px;
   <div style="display:flex;align-items:center;gap:11px;">
     <div class="logo">NTPC</div>
     <div>
-      <div class="htitle">Dadri — Emission Monitor</div>
+      <div class="htitle">Dadri — Environment Dashboard</div>
       <div class="hsub">Stage 1 (U1–U4) + Stage 2 (U5–U6) · SOx · PM · NOx · Load · Coal Flow · CPCB</div>
     </div>
   </div>
@@ -4459,6 +4459,158 @@ function updateDayTile(){
   buildOverviewCards = function(){ bo(); updateDayTile(); };
   const ra = renderAll;
   renderAll = function(){ ra(); setTimeout(drawTodayCharts, 250); };   // after the original charts are drawn
+})();
+// ══════════════════════════════════════════════════════════════
+// PROFESSIONAL CHARTS — Overview (today, no future hours) · 15-min Trend (choose parameters)
+//                       · Unit Load tab (Load vs SOx scatter removed)
+// PASTE at the very end of the last script block, AFTER today_compliance_patch.js.
+// ══════════════════════════════════════════════════════════════
+
+(function(){
+  const s = document.createElement('style');
+  s.textContent = `
+  #tab-overview [style*="height:200px"]{height:280px!important;}
+  #tab-trend [style*="height:280px"]{height:390px!important;}
+  .tp-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 14px;padding:12px 16px;background:#fff;border-radius:16px;box-shadow:0 2px 14px rgba(30,50,100,.09);}
+  .tp-lbl{font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:#64748b;margin-right:4px;}
+  .tp-chip{display:inline-flex;align-items:center;gap:7px;font:600 13px var(--sans);padding:7px 15px;border-radius:999px;border:1.5px solid var(--c);background:#fff;color:var(--c);cursor:pointer;opacity:.6;transition:all .15s;}
+  .tp-chip i{width:9px;height:9px;border-radius:50%;background:var(--c);}
+  .tp-chip.on{background:var(--c);color:#fff;opacity:1;box-shadow:0 3px 10px rgba(0,0,0,.18);}
+  .tp-chip.on i{background:#fff;}
+  .tp-sep{width:1px;height:22px;background:#d6def0;margin:0 6px;}
+  .tp-pre{font:500 12px var(--sans);padding:6px 12px;border-radius:8px;border:1px solid #d6def0;background:#f3f6fd;color:#334155;cursor:pointer;}
+  .tp-pre:hover{background:#e4ecff;}`;
+  document.head.appendChild(s);
+})();
+
+// Shared look for every chart below
+const proOpts = yTitle => ({
+  responsive: true, maintainAspectRatio: false, interaction: {mode: 'index', intersect: false},
+  plugins: {
+    legend: {display: true, position: 'top', align: 'end',
+      labels: {usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, padding: 14, color: '#475569', font: {size: 12, weight: '500'}}},
+    tooltip: {backgroundColor: 'rgba(15,23,42,.94)', titleColor: '#fff', bodyColor: '#e2e8f0', padding: 12, cornerRadius: 10,
+      boxPadding: 5, usePointStyle: true, titleFont: {size: 13, weight: '600'}, bodyFont: {size: 12}}
+  },
+  scales: {
+    x: {grid: {display: false}, border: {color: '#e2e8f0'}, ticks: {color: '#64748b', font: {size: 11}, maxTicksLimit: 10, maxRotation: 0}},
+    y: {beginAtZero: true, grid: {color: 'rgba(100,116,139,.12)'}, border: {display: false}, ticks: {color: '#64748b', font: {size: 11}},
+        title: {display: !!yTitle, text: yTitle, color: '#64748b', font: {size: 11, weight: '500'}}}
+  }
+});
+
+// ── 1) OVERVIEW: today's data, only up to the latest reading (future hours hidden) ──
+drawTodayCharts = function(){
+  if(!TODAY_S || !TODAY) return;
+  let last = -1;
+  ['sox', 'pm', 'nox', 'load'].forEach(k => TODAY_S[k].forEach(a => { for(let i = 95; i > last; i--) if(a[i] !== null){ last = i; break; } }));
+  if(last < 0) return;
+  const n = last + 1, pad = x => String(x).padStart(2, '0');
+  const labels = Array.from({length: n}, (_, i) => pad(Math.floor(i / 4)) + ':' + pad((i % 4) * 15));
+  const d = new Date(TODAY.date + 'T00:00:00').toLocaleDateString('en-IN', {day: '2-digit', month: 'short'});
+  const LIM = {sox: SOX_LIM, pm: PM_LIM, nox: NOX_LIM};
+
+  [['sox', 'SOx', 'mg/Nm³'], ['pm', 'PM', 'mg/Nm³'], ['nox', 'NOx', 'mg/Nm³'], ['load', 'Unit Load', 'MW']].forEach(([k, t, unit]) => {
+    const el = document.getElementById('ov-' + k); if(!el) return;
+    dc('ov-' + k);
+    const ds = TODAY_S[k].map((a, u) => ({label: 'Unit ' + (u + 1), data: a.slice(0, n), borderColor: UC[u], backgroundColor: UC[u],
+      tension: 0.35, pointRadius: 0, pointHoverRadius: 5, borderWidth: 2, spanGaps: true}));
+    if(LIM[k]) [...new Set(LIM[k])].forEach((l, i) => ds.push({label: 'Limit ' + l, data: Array(n).fill(l),
+      borderColor: i ? '#7c3aed' : '#dc2626', borderDash: [6, 5], borderWidth: 1.3, pointRadius: 0, pointHoverRadius: 0, fill: false}));
+    const o = proOpts(unit);
+    o.plugins.legend.labels.filter = it => !String(it.text).startsWith('Limit');
+    o.plugins.tooltip.filter = it => !String(it.dataset.label).startsWith('Limit');
+    o.plugins.tooltip.callbacks = {label: c => ' ' + c.dataset.label + ': ' + Math.round(c.parsed.y) + ' ' + unit};
+    CH['ov-' + k] = new Chart(el, {type: 'line', data: {labels, datasets: ds}, options: o});
+    const card = el.closest('.cc'), ct = card && card.querySelector('.ct');
+    if(ct) ct.textContent = t + ' — All 6 Units · Today (' + d + ') · till ' + labels[n - 1];
+  });
+};
+
+// ── 2) 15-MIN TREND: choose which parameters appear ──
+const TP = {load: true, coal: true, sox: true, pm: true, nox: true, lim: true};
+const TP_DEF = [['load', 'Load', '#2563eb'], ['coal', 'Coal flow', '#0891b2'], ['sox', 'SOx', '#dc2626'], ['pm', 'PM', '#d97706'], ['nox', 'NOx', '#7c3aed']];
+
+function syncTrendChips(){
+  document.querySelectorAll('#trend-params .tp-chip').forEach(b => b.classList.toggle('on', !!TP[b.dataset.k]));
+}
+function toggleTrendParam(k){ TP[k] = !TP[k]; syncTrendChips(); buildTrend15(tUnit); }
+function setTrendPreset(p){
+  const sets = {all: ['load', 'coal', 'sox', 'pm', 'nox'], emis: ['sox', 'pm', 'nox'], ops: ['load', 'coal']};
+  Object.keys(TP).forEach(k => { if(k !== 'lim') TP[k] = sets[p].includes(k); });
+  syncTrendChips(); buildTrend15(tUnit);
+}
+function ensureTrendUI(){
+  if(document.getElementById('trend-params')) return;
+  const tabs = document.querySelector('#tab-trend .utabs'); if(!tabs) return;
+  const bar = document.createElement('div'); bar.id = 'trend-params'; bar.className = 'tp-bar';
+  bar.innerHTML = '<span class="tp-lbl">Show on graph</span>' +
+    TP_DEF.map(([k, n, c]) => `<button class="tp-chip on" data-k="${k}" style="--c:${c}" onclick="toggleTrendParam('${k}')"><i></i>${n}</button>`).join('') +
+    '<span class="tp-sep"></span><button class="tp-chip on" data-k="lim" style="--c:#475569" onclick="toggleTrendParam(\'lim\')"><i></i>Limit lines</button>' +
+    '<span class="tp-sep"></span><button class="tp-pre" onclick="setTrendPreset(\'all\')">All</button>' +
+    '<button class="tp-pre" onclick="setTrendPreset(\'emis\')">Emissions only</button>' +
+    '<button class="tp-pre" onclick="setTrendPreset(\'ops\')">Load &amp; coal only</button>';
+  tabs.insertAdjacentElement('afterend', bar);
+}
+
+buildTrend15 = function(u){
+  if(!LBL.length) return;
+  ensureTrendUI();
+  dc('trendC');
+  document.getElementById('trend-ttl').textContent = 'Unit ' + (u + 1) + ' — 15-min Trend (Yesterday)';
+  document.getElementById('trend-stat-ttl').textContent = 'Unit ' + (u + 1) + ' — Statistics (Yesterday)';
+  const card = document.getElementById('trendC').closest('.cc');
+  if(card) card.style.setProperty('border-left', '4px solid ' + UC[u], 'important');
+
+  const P = {
+    load: {n: 'Load (MW)',      c: '#2563eb', ax: 'yL'},
+    coal: {n: 'Coal (T/hr)',    c: '#0891b2', ax: 'yL'},
+    sox:  {n: 'SOx (mg/Nm³)',   c: '#dc2626', ax: 'yE', lim: SOX_LIM[u], short: 'SOx'},
+    pm:   {n: 'PM (mg/Nm³)',    c: '#d97706', ax: 'yE', lim: PM_LIM[u],  short: 'PM'},
+    nox:  {n: 'NOx (mg/Nm³)',   c: '#7c3aed', ax: 'yE', lim: NOX_LIM[u], short: 'NOx'}
+  };
+  const keys = ['load', 'coal', 'sox', 'pm', 'nox'].filter(k => TP[k]), single = keys.length === 1;
+  const grad = c => ctx => {
+    const a = ctx.chart.chartArea; if(!a) return c + '22';
+    const g = ctx.chart.ctx.createLinearGradient(0, a.top, 0, a.bottom);
+    g.addColorStop(0, c + '55'); g.addColorStop(1, c + '05'); return g;
+  };
+  const ds = keys.map(k => ({label: P[k].n, data: D[k][u], borderColor: P[k].c, backgroundColor: single ? grad(P[k].c) : P[k].c,
+    fill: single, yAxisID: P[k].ax, tension: 0.35, pointRadius: 0, pointHoverRadius: 5, borderWidth: 2.2, spanGaps: true}));
+  if(TP.lim) keys.filter(k => P[k].lim).forEach(k => ds.push({label: 'Limit ' + P[k].lim + ' (' + P[k].short + ')',
+    data: Array(LBL.length).fill(P[k].lim), borderColor: P[k].c, borderDash: [6, 5], borderWidth: 1.2,
+    pointRadius: 0, pointHoverRadius: 0, fill: false, yAxisID: 'yE'}));
+
+  const useL = keys.some(k => P[k].ax === 'yL'), useE = keys.some(k => P[k].ax === 'yE');
+  const o = proOpts(null), ax = (pos, show, title) => ({display: show, position: pos, beginAtZero: true,
+    grid: {color: 'rgba(100,116,139,.12)', drawOnChartArea: pos === 'left' || !useL}, border: {display: false},
+    ticks: {color: '#64748b', font: {size: 11}}, title: {display: show, text: title, color: '#64748b', font: {size: 11, weight: '500'}}});
+  o.scales = {x: o.scales.x, yL: ax('left', useL, 'Load (MW) / Coal (T/hr)'), yE: ax('right', useE, 'SOx / PM / NOx (mg/Nm³)')};
+  o.plugins.tooltip.filter = it => !String(it.dataset.label).startsWith('Limit');
+  o.plugins.tooltip.callbacks = {label: c => ' ' + c.dataset.label.split(' (')[0] + ': ' + (c.parsed.y === null ? 'N/A' : (+c.parsed.y).toFixed(1))};
+  CH.trendC = new Chart(document.getElementById('trendC'), {type: 'line', data: {labels: LBL, datasets: ds}, options: o});
+
+  // statistics (ignores missing readings)
+  const row = (n, k, lim, col) => {
+    const v = D[k][u].filter(x => !isNA(x));
+    if(!v.length) return `<tr><td style="color:${col};font-weight:600">${n}</td><td colspan="5" style="color:#8a94a6;font-style:italic;text-align:center">N/A</td></tr>`;
+    const mn = Math.min(...v), mx = Math.max(...v), av = v.reduce((a, b) => a + b, 0) / v.length;
+    const exc = lim ? v.filter(x => x >= lim).length : null, comp = lim ? (v.length - exc) / v.length * 100 : null;
+    return `<tr><td style="color:${col};font-weight:600">${n}</td><td>${mn.toFixed(1)}</td><td>${av.toFixed(1)}</td><td>${mx.toFixed(1)}</td>
+      <td style="color:${exc > 0 ? '#dc2626' : '#16a34a'};font-weight:600">${exc !== null ? exc + ' blocks' : '—'}</td>
+      <td style="color:${comp >= 95 ? '#16a34a' : comp >= 80 ? '#d97706' : '#dc2626'};font-weight:600">${comp !== null ? comp.toFixed(1) + '%' : '—'}</td></tr>`;
+  };
+  document.getElementById('trendStats').innerHTML = '<tr><th>Parameter</th><th>Min</th><th>Avg</th><th>Max</th><th>Exceeded</th><th>Compliance</th></tr>' +
+    row('SOx', 'sox', SOX_LIM[u], '#dc2626') + row('PM', 'pm', PM_LIM[u], '#d97706') + row('NOx', 'nox', NOX_LIM[u], '#7c3aed') +
+    row('Load', 'load', null, '#2563eb') + row('Coal', 'coal', null, '#0891b2');
+};
+if(dataLoaded) buildTrend15(tUnit);
+
+// ── 3) UNIT LOAD TAB: remove the Load vs SOx scatter (hidden, so the page code keeps working) ──
+(function(){
+  const c = document.getElementById('corrC'); if(!c) return;
+  const card = c.closest('.cc'); if(card) card.style.display = 'none';
+  if(card && card.parentNode) card.parentNode.style.gridTemplateColumns = '1fr';
 })();
 </script>
 </body>
