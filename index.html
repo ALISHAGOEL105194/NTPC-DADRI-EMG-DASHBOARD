@@ -4612,6 +4612,217 @@ if(dataLoaded) buildTrend15(tUnit);
   const card = c.closest('.cc'); if(card) card.style.display = 'none';
   if(card && card.parentNode) card.parentNode.style.gridTemplateColumns = '1fr';
 })();
+// ══════════════════════════════════════════════════════════════════════════
+// CPCB-STYLE ALERTS TAB — Yellow / Orange / Red for SOx, PM, NOx
+// Duration: 24 Hours · 1 Week · 15 Day · Custom Range   |   Alert type · Parameter · Unit filters
+// Built from HOURLY averages of the yearly / monthly / daily Google Sheets, using the CPCB OCEMS
+// alert protocol (July 2025, stack parameters). PASTE at the very end of the last script block,
+// AFTER charts_patch.js (needs the Google Sheets patch and today_compliance_patch.js too).
+// ══════════════════════════════════════════════════════════════════════════
+
+const ALT_LIM = {sox: SOX_LIM, pm: [50, 50, 50, 50, 50, 50], nox: NOX_LIM};   // same limits as the e-mail alerts
+const ALT_MIN_LOAD = 10;                                                      // load at or below this = unit off
+const HR = {hours: [], data: {}, ts: {}, ver: 0};                             // hourly store: data['u|param'][hour] = [avg, load]
+let ALT_CACHE = {ver: -1, ev: []};
+
+// ── 1) hourly store (called every time a sheet is fetched) ──
+function addHourly(raw){
+  const nowW = Date.now() + 19800000, rowsIn = {}, acc = {};
+  raw.forEach(r => {
+    if(!r) return;
+    const dk = getDateKey(r[0]); if(!dk) return;
+    const slot = slotOf(r[0]); if(slot < 0) return;
+    const hk = dk.dateStr + ' ' + String(Math.floor(slot / 4)).padStart(2, '0');
+    rowsIn[hk] = (rowsIn[hk] || 0) + 1;
+    for(let u = 0; u < 6; u++){
+      const ld = todayNum(r[2 + u * 5]);
+      [['sox', 2], ['pm', 3], ['nox', 4]].forEach(([p, o]) => {
+        const c = u + '|' + p; acc[c] = acc[c] || {}; const h = acc[c][hk] = acc[c][hk] || {s: 0, n: 0, l: 0, ln: 0};
+        const v = todayNum(r[2 + u * 5 + o]);
+        if(v !== null && v >= 0 && v <= ALT_LIM[p][u] * 10){ h.s += v; h.n++; }
+        if(ld !== null){ h.l += ld; h.ln++; }
+      });
+    }
+  });
+  Object.keys(rowsIn).forEach(hk => {
+    const ts = Date.UTC(+hk.slice(0, 4), +hk.slice(5, 7) - 1, +hk.slice(8, 10), +hk.slice(11, 13));
+    if(rowsIn[hk] < 4 || ts + 3600000 > nowW) return;                       // only complete hours
+    HR.ts[hk] = ts;
+    Object.keys(acc).forEach(c => { const h = acc[c][hk]; (HR.data[c] = HR.data[c] || {})[hk] = [h.n ? h.s / h.n : null, h.ln ? h.l / h.ln : null]; });
+  });
+  HR.hours = Object.keys(HR.ts).sort(); HR.ver++;
+  const tab = document.getElementById('tab-cpcb'); if(tab && tab.classList.contains('active')) renderCpcb();
+}
+
+// ── 2) alert events (the CPCB rules) ──
+function altEvents(){
+  if(ALT_CACHE.ver === HR.ver) return ALT_CACHE.ev;
+  const ev = [], D30 = 30 * 86400000;
+  ['sox', 'pm', 'nox'].forEach(p => { for(let u = 0; u < 6; u++){
+    const c = u + '|' + p, lim = ALT_LIM[p][u], d = HR.data[c] || {};
+    let day = '', sms = 0, run = 0, conn = 0, cRun = 0, sRun = 0, sRef = null;
+    const yE = [], yC = [], f = {oe: 0, re: 0, oc: 0, rc: 0};
+    HR.hours.forEach(hk => {
+      const x = d[hk]; if(!x) return;
+      const t0 = HR.ts[hk], push = (level, type, detail) => ev.push({ts: t0 + 3600000, u, p, level, type, detail});
+      if(hk.slice(0, 10) !== day){ day = hk.slice(0, 10); sms = 0; run = 0; conn = 0; }
+      while(yE.length && t0 - yE[0] >= D30) yE.shift();
+      while(yC.length && t0 - yC[0] >= D30) yC.shift();
+      if(yE.length < 27) f.oe = 0; if(yE.length < 54) f.re = 0; if(yC.length < 12) f.oc = 0; if(yC.length < 18) f.rc = 0;
+      const avg = x[0], off = x[1] !== null && x[1] <= ALT_MIN_LOAD, t = off ? 'o' : avg === null ? 'c' : avg > lim ? 'x' : 'n';
+      if(t === 'x'){
+        sms++; run++;
+        const det = 'hourly avg ' + Math.round(avg) + ' vs limit ' + lim + ' mg/Nm³';
+        if(sms % 2 === 0){
+          push(1, 'exc', sms + ' hourly exceedance alerts today · ' + det); yE.push(t0);
+          if(yE.length >= 27 && !f.oe){ f.oe = 1; push(2, 'exc', yE.length + ' yellow exceedance alerts in 30 days'); }
+          if(yE.length >= 54 && !f.re){ f.re = 1; push(3, 'exc', yE.length + ' yellow exceedance alerts in 30 days'); }
+        }
+        if(run % 4 === 0) push(2, 'exc', run + ' consecutive hourly exceedances · ' + det);
+        if(run % 8 === 0) push(3, 'exc', run + ' consecutive hourly exceedances · ' + det);
+      } else run = 0;
+      if(t === 'c'){
+        conn++; cRun++;
+        if(conn % 4 === 0){
+          push(1, 'conn', conn + ' hours of data failure today'); yC.push(t0);
+          if(yC.length >= 12 && !f.oc){ f.oc = 1; push(2, 'conn', yC.length + ' yellow data-failure alerts in 30 days'); }
+          if(yC.length >= 18 && !f.rc){ f.rc = 1; push(3, 'conn', yC.length + ' yellow data-failure alerts in 30 days'); }
+        }
+        if(cRun === 48) push(2, 'conn', '48 hours of continuous data failure');
+        if(cRun === 96) push(3, 'conn', '96 hours of continuous data failure');
+      } else cRun = 0;
+      if(t === 'x' || t === 'n'){
+        if(sRef !== null && Math.abs(avg - sRef) <= 0.05 * Math.abs(sRef)) sRun++; else { sRef = avg; sRun = 1; }
+        if(sRun === 48) push(1, 'stable', 'values unchanged (±5%) for 48 hours');
+        if(sRun === 72) push(2, 'stable', 'values unchanged (±5%) for 72 hours');
+        if(sRun === 144) push(3, 'stable', 'values unchanged (±5%) for 144 hours');
+      } else { sRun = 0; sRef = null; }
+    });
+  } });
+  ev.sort((a, b) => b.ts - a.ts);
+  ALT_CACHE = {ver: HR.ver, ev};
+  return ev;
+}
+
+// ── 3) the tab ──
+(function(){
+  const s = document.createElement('style');
+  s.textContent = `
+  .cp-filters{display:flex;flex-wrap:wrap;gap:18px;align-items:flex-end;background:#fff;border-radius:16px;padding:16px 20px;box-shadow:0 2px 14px rgba(30,50,100,.09);margin-bottom:14px;}
+  .cp-filters label{display:block;font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:#2563eb;margin-bottom:5px;}
+  .cp-filters select,.cp-filters input{font:500 13px var(--sans);padding:8px 12px;border:1px solid #d6def0;border-radius:8px;background:#fff;min-width:150px;}
+  .cp-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px;}
+  .cp-card{border-radius:16px;padding:18px 20px;display:flex;align-items:center;gap:16px;box-shadow:0 2px 14px rgba(30,50,100,.09);border-top:4px solid var(--c);background:linear-gradient(180deg,var(--bg),#fff);}
+  .cp-card .n{font:700 34px var(--sans);color:#1e2a5a;line-height:1.1;} .cp-card .l{font:600 14px var(--sans);color:#475569;}
+  .cp-card .p{display:inline-block;font:600 12px var(--mono);padding:2px 9px;border-radius:10px;background:#fff;color:var(--c);margin:4px 0;} .cp-card .i{font:500 12px var(--sans);color:#64748b;}
+  .cp-lvl{display:inline-block;padding:3px 11px;border-radius:12px;font:600 12px var(--sans);color:#fff;}
+  .cp-tbl{width:100%;border-collapse:collapse;font-size:13px;} .cp-tbl th{background:#f3f6fd;color:#334155;text-align:left;padding:10px 8px;font-size:12px;position:sticky;top:0;}
+  .cp-tbl td{padding:9px 8px;border-bottom:1px solid #eef1f7;} .cp-tbl tr:hover td{background:#f8faff;}
+  @media(max-width:900px){.cp-cards{grid-template-columns:1fr 1fr;}}`;
+  document.head.appendChild(s);
+
+  const btn = document.createElement('button');
+  btn.className = 'tab'; btn.dataset.tab = 'cpcb'; btn.textContent = '🚨 CPCB Alerts'; btn.setAttribute('onclick', "sw('cpcb',this)");
+  const adm = document.querySelector('.tab.admin-tab'); adm.parentNode.insertBefore(btn, adm);
+
+  const panel = document.createElement('div'); panel.id = 'tab-cpcb'; panel.className = 'panel';
+  panel.innerHTML = `
+    <div class="cc" style="margin-bottom:14px"><div class="ct">CPCB-style Alert Summary — SOx · PM · NOx</div>
+      <div class="cs" id="cp-note"></div></div>
+    <div class="cp-filters">
+      <div><label>Duration</label><select id="alt-dur" onchange="document.getElementById('alt-custom').style.display=this.value==='c'?'flex':'none'">
+        <option value="24">24 Hours</option><option value="7">1 Week</option><option value="15">15 Day</option><option value="c">Custom Range</option></select></div>
+      <div id="alt-custom" style="display:none;gap:10px"><div><label>From</label><input type="date" id="alt-from"></div><div><label>To</label><input type="date" id="alt-to"></div></div>
+      <div><label>Alert type</label><select id="alt-type"><option value="all">All Alerts</option><option value="exc">Exceedance Alerts</option><option value="avail">Data Availability Alerts</option></select></div>
+      <div><label>Parameter</label><select id="alt-par"><option value="all">All (SOx, PM, NOx)</option><option value="sox">SOx</option><option value="pm">PM</option><option value="nox">NOx</option></select></div>
+      <div><label>Unit</label><select id="alt-unit"><option value="all">All units</option>${[1,2,3,4,5,6].map(i => '<option value="' + (i - 1) + '">Unit ' + i + '</option>').join('')}</select></div>
+      <div style="margin-left:auto;display:flex;gap:8px"><button class="btn" onclick="clearCpcb()">Clear All</button><button class="btn btn-g" onclick="renderCpcb()">Apply Filters</button></div>
+    </div>
+    <div class="cp-cards" id="cp-cards"></div>
+    <div class="cc"><div class="ct" style="margin-bottom:4px">🔔 Alert List</div><div class="cs" id="cp-sub" style="margin-bottom:10px"></div>
+      <div style="overflow:auto;max-height:560px"><table class="cp-tbl" id="cp-tbl"></table></div></div>`;
+  document.querySelector('.main').appendChild(panel);
+
+  const sw0 = sw; sw = function(name, b){ sw0(name, b); if(name === 'cpcb') renderCpcb(); };
+  const pe = processExcelData; processExcelData = function(raw, sn, src){ pe(raw, sn, src); try{ addHourly(raw); }catch(e){ console.warn('addHourly:', e); } };
+  const ga = gsApply; gsApply = function(k, raw){ const r = ga(k, raw); if(k === 'yearly' || k === 'monthly'){ try{ addHourly(raw); }catch(e){ console.warn('addHourly:', e); } } return r; };
+})();
+
+function clearCpcb(){
+  ['alt-dur', 'alt-type', 'alt-par', 'alt-unit'].forEach(id => document.getElementById(id).selectedIndex = 0);
+  document.getElementById('alt-custom').style.display = 'none'; renderCpcb();
+}
+
+function renderCpcb(){
+  const fmt = ts => { const d = new Date(ts), p = x => String(x).padStart(2, '0'); return p(d.getUTCDate()) + '-' + p(d.getUTCMonth() + 1) + '-' + d.getUTCFullYear() + ' ' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()); };
+  const last = HR.hours.length ? HR.ts[HR.hours[HR.hours.length - 1]] + 3600000 : Date.now();
+  const dur = document.getElementById('alt-dur').value;
+  let from = last - (dur === '7' ? 7 : dur === '15' ? 15 : 1) * 86400000, to = last;
+  if(dur === 'c'){
+    const f = document.getElementById('alt-from').value, t = document.getElementById('alt-to').value;
+    from = f ? Date.parse(f + 'T00:00:00Z') : 0; to = t ? Date.parse(t + 'T23:59:59Z') : last;
+  }
+  document.getElementById('cp-note').textContent = HR.hours.length
+    ? 'Data used: ' + fmt(HR.ts[HR.hours[0]]) + ' to ' + fmt(last) + ' · PM norm ' + ALT_LIM.pm.join('/') + ' · hourly averages of 15-min data · CPCB OCEMS alert protocol (July 2025)'
+    : 'No hourly data yet — alerts are built from the yearly / monthly / daily Google Sheets once they are fetched.';
+  const type = document.getElementById('alt-type').value, par = document.getElementById('alt-par').value, un = document.getElementById('alt-unit').value;
+  const ev = altEvents().filter(e => e.ts > from && e.ts <= to &&
+    (type === 'all' || (type === 'exc') === (e.type === 'exc')) && (par === 'all' || e.p === par) && (un === 'all' || e.u === +un));
+
+  const cnt = [0, 0, 0, 0]; ev.forEach(e => cnt[e.level]++);
+  const tot = ev.length, ring = (pc, c) => `<svg width="74" height="74" viewBox="0 0 74 74"><circle cx="37" cy="37" r="29" fill="none" stroke="${c}33" stroke-width="9"/>
+    <circle cx="37" cy="37" r="29" fill="none" stroke="${c}" stroke-width="9" stroke-linecap="round" stroke-dasharray="182.2" stroke-dashoffset="${182.2 * (1 - pc / 100)}" transform="rotate(-90 37 37)"/></svg>`;
+  const ind = n => (n ? 1 : 0) + ' Industry';
+  document.getElementById('cp-cards').innerHTML =
+    `<div class="cp-card" style="--c:#2563eb;--bg:#eef3ff"><div style="width:62px;height:62px;border-radius:50%;background:#dbe6ff;display:flex;align-items:center;justify-content:center;font-size:26px">🔔</div>
+      <div><div class="l">Total Alerts</div><div class="n">${tot}</div><div class="i">${ind(tot)}</div></div></div>` +
+    [1, 2, 3].map(l => { const pc = tot ? cnt[l] / tot * 100 : 0, c = ['', '#eab308', '#f97316', '#dc2626'][l], bg = ['', '#fffbe6', '#fff3ea', '#fff0f0'][l];
+      return `<div class="cp-card" style="--c:${c};--bg:${bg}">${ring(pc, c)}<div><div class="l">${['', 'Yellow', 'Orange', 'Red'][l]} Alerts</div><div class="n">${cnt[l]}</div><div class="p">${pc.toFixed(2)}%</div><div class="i">${ind(cnt[l])}</div></div></div>`; }).join('');
+
+  const names = {sox: 'SOx', pm: 'PM', nox: 'NOx'}, tname = {exc: 'Exceedance', conn: 'Data availability', stable: 'Consistent & stable values'};
+  document.getElementById('cp-sub').textContent = 'Alerts raised between ' + fmt(from) + ' and ' + fmt(to) + (tot > 300 ? ' · showing the latest 300 of ' + tot : '');
+  document.getElementById('cp-tbl').innerHTML = '<tr><th>#</th><th>Alert ID</th><th>Industry</th><th>Unit</th><th>Parameter</th><th>Alert level</th><th>Alert type</th><th>Raised at</th><th>Details</th></tr>' +
+    (ev.length ? ev.slice(0, 300).map((e, i) => `<tr><td>${i + 1}</td><td>${new Date(e.ts).toISOString().slice(2, 13).replace(/[-T]/g, '')}${e.u + 1}${e.p[0].toUpperCase()}${e.level}</td>
+      <td>NTPC Dadri</td><td>Unit ${e.u + 1} <span style="color:#8a94a6;font-size:11px">Stage ${e.u < 4 ? 1 : 2}</span></td><td>${names[e.p]}</td>
+      <td><span class="cp-lvl" style="background:${['', '#eab308', '#f97316', '#dc2626'][e.level]};${e.level === 1 ? 'color:#222' : ''}">${['', 'Yellow', 'Orange', 'Red'][e.level]}</span></td>
+      <td>${tname[e.type]}</td><td>${fmt(e.ts)}</td><td style="font-size:12px;color:#475569">${e.detail}</td></tr>`).join('')
+      : '<tr><td colspan="9" style="text-align:center;color:#8a94a6;padding:26px;font-style:italic">No alerts in this period.</td></tr>');
+}
+// ══════════════════════════════════════════════════════════════
+// LOAD THE AUTOMATIC HOURLY HISTORY (HISTORY tab of the daily Google Sheet)
+// into the CPCB Alerts tab. PASTE at the very end of the last script block,
+// AFTER cpcb_alerts_tab_patch.js.
+// ══════════════════════════════════════════════════════════════
+
+async function loadHistory(){
+  const id = localStorage.getItem('ntpc_gsheet_id') || (typeof GSHEET_DEFAULT_ID !== 'undefined' ? GSHEET_DEFAULT_ID : '');
+  if(!id) return;
+  try{
+    const r = await gsJSONP(id, 'HISTORY');
+    const rows = (r.table && r.table.rows) || [];
+    let n = 0;
+    rows.forEach(x => {
+      const c = x.c || [], hk = c[0] && c[0].v;
+      if(typeof hk !== 'string' || !/^\d{4}-\d{2}-\d{2} \d{2}$/.test(hk)) return;          // skips the header row
+      HR.ts[hk] = Date.UTC(+hk.slice(0, 4), +hk.slice(5, 7) - 1, +hk.slice(8, 10), +hk.slice(11, 13));
+      for(let u = 0; u < 6; u++){
+        const ld = c[1 + u * 4], load = ld && ld.v !== null && ld.v !== undefined ? +ld.v : null;
+        ['sox', 'pm', 'nox'].forEach((p, k) => {
+          const v = c[2 + u * 4 + k], key = u + '|' + p;
+          (HR.data[key] = HR.data[key] || {})[hk] = [v && v.v !== null && v.v !== undefined ? +v.v : null, load];
+        });
+      }
+      n++;
+    });
+    HR.hours = Object.keys(HR.ts).sort(); HR.ver++;
+    const tab = document.getElementById('tab-cpcb');
+    if(tab && tab.classList.contains('active')) renderCpcb();
+    console.log('HISTORY loaded: ' + n + ' hours');
+  }catch(e){ console.warn('loadHistory:', e); }
+}
+window.addEventListener('load', () => { setTimeout(loadHistory, 5000); setInterval(loadHistory, 30 * 60 * 1000); });
+
 </script>
+
 </body>
 </html>
