@@ -4821,7 +4821,301 @@ async function loadHistory(){
   }catch(e){ console.warn('loadHistory:', e); }
 }
 window.addEventListener('load', () => { setTimeout(loadHistory, 5000); setInterval(loadHistory, 30 * 60 * 1000); });
+// ══════════════════════════════════════════════════════════════════════════
+// HISTORY TAB — Alerts · Data unavailability · 15-min trends
+// Range: Last 7 days · Last 15 days · This month · Last month · Custom range
+// PASTE at the very end of the last script block, AFTER history_patch.js
+// (needs the CPCB Alerts patch, charts_patch.js, history_patch.js and the Apps Script history files).
+// ══════════════════════════════════════════════════════════════════════════
 
+const HV = {view: 'alerts', trend: {unit: 0, p: {load: true, coal: true, sox: true, pm: true, nox: true, lim: true}}, cache: {}, zoom: null, zkey: '', curLab: []};
+
+(function(){
+  const s = document.createElement('style');
+  s.textContent = `
+  .hv-bar{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;background:#fff;border-radius:16px;padding:16px 20px;box-shadow:0 2px 14px rgba(30,50,100,.09);margin-bottom:14px;}
+  .hv-bar label{display:block;font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:#2563eb;margin-bottom:5px;}
+  .hv-bar select,.hv-bar input{font:500 13px var(--sans);padding:8px 12px;border:1px solid #d6def0;border-radius:8px;background:#fff;min-width:140px;}
+  .hv-views{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+  .hv-v{font:600 14px var(--sans);padding:9px 20px;border-radius:999px;border:1.5px solid #cfd9f2;background:#fff;color:#334155;cursor:pointer;}
+  .hv-v.on{background:linear-gradient(135deg,#1d4ed8,#3b82f6);color:#fff;border-color:transparent;box-shadow:0 4px 12px rgba(37,99,235,.3);}
+  .hv-zbox{position:absolute;top:0;bottom:0;background:rgba(37,99,235,.15);border:1px solid #2563eb;display:none;pointer-events:none;}`;
+  document.head.appendChild(s);
+
+  const btn = document.createElement('button');
+  btn.className = 'tab'; btn.dataset.tab = 'hist'; btn.textContent = '📚 History'; btn.setAttribute('onclick', "sw('hist',this)");
+  const adm = document.querySelector('.tab.admin-tab'); adm.parentNode.insertBefore(btn, adm);
+
+  const panel = document.createElement('div'); panel.id = 'tab-hist'; panel.className = 'panel';
+  panel.innerHTML = `
+    <div class="cc" style="margin-bottom:14px"><div class="ct">History — Alerts · Data unavailability · 15-min trends</div><div class="cs" id="hv-note"></div></div>
+    <div class="hv-bar">
+      <div><label>Range</label><select id="hv-range" onchange="document.getElementById('hv-custom').style.display=this.value==='c'?'flex':'none';renderHistory()">
+        <option value="7">Last 7 days</option><option value="15">Last 15 days</option><option value="m0">This month</option><option value="m1">Last month</option><option value="c">Custom range</option></select></div>
+      <div id="hv-custom" style="display:none;gap:10px"><div><label>From</label><input type="date" id="hv-from"></div><div><label>To</label><input type="date" id="hv-to"></div></div>
+      <div><label>Parameter</label><select id="hv-par" onchange="renderHistory()"><option value="all">All (SOx, PM, NOx)</option><option value="sox">SOx</option><option value="pm">PM</option><option value="nox">NOx</option></select></div>
+      <div><label>Unit</label><select id="hv-unit" onchange="renderHistory()"><option value="all">All units</option>${[1,2,3,4,5,6].map(i => '<option value="' + (i - 1) + '">Unit ' + i + '</option>').join('')}</select></div>
+      <div style="margin-left:auto"><button class="btn btn-g" onclick="renderHistory()">Apply</button></div>
+    </div>
+    <div class="hv-views">
+      <button class="hv-v on" data-v="alerts" onclick="hvSetView('alerts')">🚨 Alerts</button>
+      <button class="hv-v" data-v="avail" onclick="hvSetView('avail')">📡 Data unavailability</button>
+      <button class="hv-v" data-v="trend" onclick="hvSetView('trend')">📈 15-min trends</button>
+    </div>
+    <div id="hv-body"></div>`;
+  document.querySelector('.main').appendChild(panel);
+  const sw1 = sw; sw = function(n, b){ sw1(n, b); if(n === 'hist') renderHistory(); };
+})();
+
+const hvFmt = ts => { const d = new Date(ts), p = x => String(x).padStart(2, '0'); return p(d.getUTCDate()) + '-' + p(d.getUTCMonth() + 1) + '-' + d.getUTCFullYear() + ' ' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()); };
+const hvQ = ts => new Date(ts).toISOString().slice(0, 19).replace('T', ' ');
+const hvNames = {sox: 'SOx', pm: 'PM', nox: 'NOx'};
+const hvId = () => localStorage.getItem('ntpc_gsheet_id') || (typeof GSHEET_DEFAULT_ID !== 'undefined' ? GSHEET_DEFAULT_ID : '');
+
+function hvSetView(v){
+  HV.view = v;
+  document.querySelectorAll('.hv-v').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  renderHistory();
+}
+
+function hvRange(){
+  const last = HR.hours.length ? HR.ts[HR.hours[HR.hours.length - 1]] + 3600000 : Date.now() + 19800000, v = document.getElementById('hv-range').value;
+  const d = new Date(last), m0 = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1);
+  if(v === '7' || v === '15') return [last - +v * 86400000, last];
+  if(v === 'm0') return [m0, last];
+  if(v === 'm1') return [Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 1), m0];
+  const f = document.getElementById('hv-from').value, t = document.getElementById('hv-to').value;
+  return [f ? Date.parse(f + 'T00:00:00Z') : 0, t ? Date.parse(t + 'T23:59:59Z') + 1000 : last];
+}
+
+function renderHistory(){
+  const [from, to] = hvRange();
+  document.getElementById('hv-note').textContent = HR.hours.length
+    ? 'Selected: ' + hvFmt(from) + ' → ' + hvFmt(to) + ' · hourly history available from ' + hvFmt(HR.ts[HR.hours[0]]) + ' to ' + hvFmt(HR.ts[HR.hours[HR.hours.length - 1]] + 3600000)
+    : 'No history loaded yet — it is read from the HISTORY / HISTORY15 tabs of the daily Google Sheet.';
+  const body = document.getElementById('hv-body');
+  ['hvC', 'hvC2'].forEach(dc);
+  if(HV.view === 'alerts') hvAlerts(body, from, to);
+  else if(HV.view === 'avail') hvAvail(body, from, to);
+  else hvTrend(body, from, to);
+}
+
+const hvDays = (from, to) => { const a = []; for(let t = Math.floor(from / 86400000) * 86400000; t < to; t += 86400000) a.push(new Date(t).toISOString().slice(0, 10)); return a; };
+const hvSel = () => ({p: document.getElementById('hv-par').value, u: document.getElementById('hv-unit').value});
+
+// ── Alerts (same style as the main Alerts tab: exceeded / warning / normal 15-min intervals) ──
+async function hvAlerts(body, from, to){
+  const d = await hvLoad15(body, from, to); if(!d || HV.view !== 'alerts') return;
+  if(!d.lab.length){ body.innerHTML = '<div class="cc" style="color:#8a94a6;font-style:italic">No 15-minute data in this range yet.</div>'; return; }
+  const f = hvSel(), pars = f.p === 'all' ? ['sox', 'pm', 'nox'] : [f.p], units = f.u === 'all' ? [0, 1, 2, 3, 4, 5] : [+f.u];
+  const idx = {sox: 2, pm: 3, nox: 4}, L = {sox: SOX_LIM, pm: PM_LIM, nox: NOX_LIM}, total = d.lab.length;
+  const skin = {sox: ['#fff5f5', '#fecaca', '#d63031'], pm: ['#fffbf0', '#fed7aa', '#c07c0a'], nox: ['#faf5ff', '#e9d5ff', '#7c3aed']};
+  const days = hvDays(from, to), dayOf = t => Math.floor(t / 86400000) - Math.floor(from / 86400000);
+  const ST = {}, perDay = {};
+  pars.forEach(p => {
+    ST[p] = {}; perDay[p] = days.map(() => 0);
+    units.forEach(u => {
+      const lim = L[p][u]; let ex = 0, wa = 0, no = 0, na = 0, mx = null, sum = 0;
+      d.ser[u][idx[p]].forEach((v, i) => {
+        if(v === null){ na++; return; }
+        sum += v; if(mx === null || v > mx) mx = v;
+        if(v >= lim){ ex++; const k = dayOf(d.lab[i]); if(perDay[p][k] !== undefined) perDay[p][k]++; } else if(v >= lim * 0.8) wa++; else no++;
+      });
+      const valid = ex + wa + no;
+      ST[p][u] = {lim, valid, ex, wa, no, na, mx, avg: valid ? sum / valid : null, comp: valid ? (no + wa) / valid * 100 : null};
+    });
+  });
+  const pct = (a, b) => b > 0 ? Math.round(a / b * 100) : 0, cc = c => c === null ? '#8a94a6' : c >= 95 ? '#2e9e5b' : c >= 80 ? '#c07c0a' : '#d63031';
+  const TH = 'style="padding:7px 10px;text-align:center;color:#4a5568"';
+  const section = p => {
+    const [bg, bd, col] = skin[p], R = units.map(u => ST[p][u]);
+    const tE = R.reduce((x, r) => x + r.ex, 0), tW = R.reduce((x, r) => x + r.wa, 0), tN = R.reduce((x, r) => x + r.no, 0), tNA = R.reduce((x, r) => x + r.na, 0), tV = tE + tW + tN;
+    const strip = tE ? `<div class="as critical" style="margin-bottom:6px">▲ <strong>${hvNames[p]} — ${tE} intervals exceeded the limit</strong> in the selected period.</div>` : `<div class="as normal" style="margin-bottom:6px">✓ ${hvNames[p]} within limits for all valid intervals.</div>`;
+    const warnStrip = tW ? `<div class="as warning" style="margin-bottom:10px">● <strong>${hvNames[p]} — ${tW} intervals in the warning zone (80–100% of limit)</strong></div>` : '';
+    const rows = units.map(u => { const r = ST[p][u];
+      return `<tr style="border-bottom:1px solid #e8edf5;background:${r.ex ? 'rgba(214,48,49,0.04)' : r.wa ? 'rgba(192,124,10,0.04)' : ''}">
+        <td style="padding:7px 10px;font-weight:600;color:${UC[u]}">U${u + 1} <span style="font-size:9px;color:#8a94a6;font-weight:400">${STAGE[u]}</span></td>
+        <td style="padding:7px 10px;text-align:center;color:#4a5568">${r.lim}</td><td style="padding:7px 10px;text-align:center;color:#4a5568">${r.valid}/${total}</td>
+        <td style="padding:7px 10px;text-align:center"><span style="color:${r.ex ? '#d63031' : '#2e9e5b'};font-weight:${r.ex ? 700 : 400}">${r.ex}</span><span style="color:#8a94a6;font-size:9px"> (${pct(r.ex, r.valid)}%)</span></td>
+        <td style="padding:7px 10px;text-align:center"><span style="color:${r.wa ? '#c07c0a' : '#2e9e5b'};font-weight:${r.wa ? 600 : 400}">${r.wa}</span><span style="color:#8a94a6;font-size:9px"> (${pct(r.wa, r.valid)}%)</span></td>
+        <td style="padding:7px 10px;text-align:center;color:#2e9e5b">${r.no}<span style="color:#8a94a6;font-size:9px"> (${pct(r.no, r.valid)}%)</span></td>
+        <td style="padding:7px 10px;text-align:center;color:#8a94a6">${r.na || '—'}</td>
+        <td style="padding:7px 10px;text-align:center;font-weight:600;color:${r.mx === null ? '#8a94a6' : r.mx >= r.lim ? '#d63031' : r.mx >= r.lim * 0.8 ? '#c07c0a' : '#2e9e5b'}">${r.mx === null ? 'N/A' : Math.round(r.mx)}</td>
+        <td style="padding:7px 10px;text-align:center;color:#4a5568">${r.avg === null ? 'N/A' : Math.round(r.avg)}</td>
+        <td style="padding:7px 10px;text-align:center;font-weight:600;color:${cc(r.comp)}">${r.comp === null ? 'N/A' : r.comp.toFixed(1) + '%'}</td></tr>`; }).join('');
+    const tc = tV ? (tN + tW) / tV * 100 : null;
+    return `<div style="background:${bg};border:1px solid ${bd};border-radius:10px;padding:14px 16px;margin-bottom:14px;">
+      <div style="font-size:12px;font-family:var(--mono);color:${col};font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px;"><span style="background:${col};color:#fff;padding:2px 9px;border-radius:4px;font-size:10px">${hvNames[p]}</span>
+        Exceedance Analysis — ${hvFmt(from)} to ${hvFmt(to)} · limit: ${L[p][0]} mg/Nm³ (Stage 1) / ${L[p][4]} mg/Nm³ (Stage 2)</div>
+      ${strip}${warnStrip}<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--mono);font-size:13px;"><thead><tr style="background:#f0f2f8;border-bottom:2px solid #d0d5e0;">
+        <th style="padding:7px 10px;text-align:left;color:#4a5568">Unit</th><th ${TH}>Limit</th><th ${TH}>Valid Intervals</th><th style="padding:7px 10px;text-align:center;color:#d63031">🔴 Exceeded</th><th style="padding:7px 10px;text-align:center;color:#c07c0a">🟡 Warning</th><th style="padding:7px 10px;text-align:center;color:#2e9e5b">🟢 Normal</th><th style="padding:7px 10px;text-align:center;color:#8a94a6">N/A</th><th ${TH}>Max</th><th ${TH}>Avg</th><th ${TH}>Compliance</th></tr></thead>
+        <tbody>${rows}<tr style="background:#f0f2f8;border-top:2px solid #d0d5e0;font-weight:600"><td style="padding:7px 10px">ALL UNITS</td><td></td><td style="padding:7px 10px;text-align:center">${tV}</td>
+          <td style="padding:7px 10px;text-align:center;color:${tE ? '#d63031' : '#2e9e5b'};font-weight:700">${tE}</td><td style="padding:7px 10px;text-align:center;color:${tW ? '#c07c0a' : '#2e9e5b'}">${tW}</td><td style="padding:7px 10px;text-align:center;color:#2e9e5b">${tN}</td>
+          <td style="padding:7px 10px;text-align:center;color:#8a94a6">${tNA || '—'}</td><td colspan="2"></td><td style="padding:7px 10px;text-align:center;font-weight:700;color:${cc(tc)}">${tc === null ? 'N/A' : tc.toFixed(1) + '%'}</td></tr></tbody></table></div></div>`;
+  };
+  body.innerHTML = pars.map(section).join('') +
+    `<div class="two"><div class="cc" style="margin-bottom:0"><div class="ct" style="margin-bottom:8px">Exceedance + warning summary — 15-min intervals</div><div style="position:relative;height:260px"><canvas id="hvC"></canvas></div></div>
+     <div class="cc" style="margin-bottom:0"><div class="ct" style="margin-bottom:8px">Exceeded intervals per day</div><div style="position:relative;height:260px"><canvas id="hvC2"></canvas></div></div></div>`;
+  const colr = {sox: ['rgba(214,48,49,0.85)', 'rgba(214,48,49,0.35)'], pm: ['rgba(192,124,10,0.85)', 'rgba(192,124,10,0.35)'], nox: ['rgba(124,58,237,0.85)', 'rgba(124,58,237,0.35)']};
+  const o1 = proOpts('15-min intervals'); o1.plugins.legend.labels.font = {size: 11};
+  CH.hvC = new Chart(document.getElementById('hvC'), {type: 'bar', options: o1, data: {labels: units.map(u => 'U' + (u + 1)),
+    datasets: pars.flatMap(p => [{label: hvNames[p] + ' exceeded', data: units.map(u => ST[p][u].ex), backgroundColor: colr[p][0], borderRadius: 3}, {label: hvNames[p] + ' warning', data: units.map(u => ST[p][u].wa), backgroundColor: colr[p][1], borderRadius: 3}])}});
+  const o2 = proOpts('Intervals'); o2.scales.x.stacked = true; o2.scales.y.stacked = true;
+  CH.hvC2 = new Chart(document.getElementById('hvC2'), {type: 'bar', options: o2, data: {labels: days.map(x => x.slice(8) + '/' + x.slice(5, 7)),
+    datasets: pars.map(p => ({label: hvNames[p], data: perDay[p], backgroundColor: colr[p][0], borderRadius: 3}))}});
+}
+
+// ── Data unavailability ──
+function hvAvail(body, from, to){
+  if(!HR.hours.length){ body.innerHTML = '<div class="cc" style="color:#8a94a6;font-style:italic">No hourly history yet.</div>'; return; }
+  const f = hvSel(), first = HR.ts[HR.hours[0]], lastH = HR.ts[HR.hours[HR.hours.length - 1]];
+  const a = Math.max(from, first), b = Math.min(to - 3600000, lastH), key = t => new Date(t).toISOString().slice(0, 13).replace('T', ' ');
+  const days = hvDays(a, b + 3600000), perDay = {sox: days.map(() => 0), pm: days.map(() => 0), nox: days.map(() => 0)};
+  const S = {}, runs = []; let missing = 0;
+  const pars = f.p === 'all' ? ['sox', 'pm', 'nox'] : [f.p], units = f.u === 'all' ? [0, 1, 2, 3, 4, 5] : [+f.u];
+  pars.forEach(p => units.forEach(u => {
+    const c = u + '|' + p, s = S[c] = {valid: 0, fail: 0, off: 0}; let run = null;
+    for(let t = a; t <= b; t += 3600000){
+      const x = (HR.data[c] || {})[key(t)];
+      const st = !x ? 'm' : (x[1] !== null && x[1] <= ALT_MIN_LOAD) ? 'o' : x[0] === null ? 'c' : 'v';
+      if(st === 'v') s.valid++; else if(st === 'o') s.off++; else if(st === 'c') s.fail++;
+      if(st === 'm' && c === units[0] + '|' + pars[0]) missing++;
+      if(st === 'c'){ perDay[p][Math.floor((t - Math.floor(a / 86400000) * 86400000) / 86400000)]++; if(!run) run = {u, p, t0: t, h: 0}; run.h++; }
+      else if(run){ runs.push({...run, t1: t}); run = null; }
+    }
+    if(run) runs.push({...run, t1: b + 3600000});
+  }));
+  const pc = (v, t) => t > 0 ? (v / t * 100) : null, colr = v => v === null ? '#8a94a6' : v >= 95 ? '#16a34a' : v >= 80 ? '#d97706' : '#dc2626';
+  const rowsT = units.map(u => `<tr><td style="font-weight:600">Unit ${u + 1}</td>` + pars.map(p => { const s = S[u + '|' + p], run = s.valid + s.fail, v = pc(s.valid, run);
+    return `<td><span style="color:${colr(v)};font-weight:700">${v === null ? 'n/a' : v.toFixed(1) + '%'}</span><br><span style="font-size:11px;color:#8a94a6">${s.fail} h failed · ${s.off} h unit off</span></td>`; }).join('') + '</tr>').join('');
+  runs.sort((x, y) => y.t0 - x.t0);
+  body.innerHTML = `<div class="kpis">${kTile(kGr('#1d4ed8,#60a5fa'), 'Hours reviewed', Math.max(0, Math.round((b - a) / 3600000) + 1), 'with history available')}${kTile(kGr(runs.length ? '#b91c1c,#f87171' : '#15803d,#4ade80'), 'Data gaps', runs.length, 'unit running, no valid reading')}${kTile(kGr('#b45309,#fbbf24'), 'Failed hours', Object.values(S).reduce((x, s) => x + s.fail, 0), 'all selected units / parameters')}${kTile(kGr('#6d28d9,#a78bfa'), 'Hours not received', missing, 'no rows from the plant at all')}</div>
+    <div class="two"><div class="cc" style="margin-bottom:0"><div class="ct" style="margin-bottom:8px">Data availability (unit running)</div><table class="tbl"><tr><th>Unit</th>${pars.map(p => '<th>' + hvNames[p] + '</th>').join('')}</tr>${rowsT}</table></div>
+    <div class="cc" style="margin-bottom:0"><div class="ct" style="margin-bottom:8px">Failed hours per day</div><div style="position:relative;height:260px"><canvas id="hvC"></canvas></div></div></div>
+    <div class="cc" style="margin-top:14px"><div class="ct" style="margin-bottom:8px">Data gaps ${runs.length > 300 ? '<span class="cs">(latest 300 of ' + runs.length + ')</span>' : ''}</div><div style="overflow:auto;max-height:420px"><table class="cp-tbl"><tr><th>#</th><th>Unit</th><th>Parameter</th><th>From</th><th>To</th><th>Hours</th></tr>
+    ${runs.length ? runs.slice(0, 300).map((r, i) => `<tr><td>${i + 1}</td><td>Unit ${r.u + 1}</td><td>${hvNames[r.p]}</td><td>${hvFmt(r.t0)}</td><td>${hvFmt(r.t1)}</td><td><b>${r.h}</b></td></tr>`).join('')
+      : '<tr><td colspan="6" style="text-align:center;color:#8a94a6;padding:24px;font-style:italic">No data gaps in this period.</td></tr>'}</table></div></div>`;
+  const o = proOpts('Hours'); o.scales.x.stacked = true; o.scales.y.stacked = true;
+  CH.hvC = new Chart(document.getElementById('hvC'), {type: 'bar', options: o, data: {labels: days.map(d => d.slice(8) + '/' + d.slice(5, 7)),
+    datasets: pars.map(p => ({label: hvNames[p], data: perDay[p], backgroundColor: {sox: '#dc2626', pm: '#d97706', nox: '#7c3aed'}[p], borderRadius: 3}))}});
+}
+
+// ── 15-min trends (read from the HISTORY15 tab with a date-range query) ──
+function gsQuery(id, tab, tq){
+  return new Promise((res, rej) => {
+    const cb = 'gq_' + Date.now() + Math.floor(Math.random() * 1e4), s = document.createElement('script');
+    const done = () => { clearTimeout(t); delete window[cb]; s.remove(); };
+    const t = setTimeout(() => { done(); rej(new Error('Timeout while reading the history')); }, 40000);
+    window[cb] = r => { done(); res(r); };
+    s.onerror = () => { done(); rej(new Error('Could not load the history sheet')); };
+    s.src = 'https://docs.google.com/spreadsheets/d/' + id + '/gviz/tq?tqx=out:json;responseHandler:' + cb + '&sheet=' + encodeURIComponent(tab) + '&tq=' + encodeURIComponent(tq) + '&t=' + Date.now();
+    document.head.appendChild(s);
+  });
+}
+
+async function hvLoad15(body, from, to){
+  const id = hvId(), key = from + '|' + to;
+  if(!id){ body.innerHTML = '<div class="cc">Daily Google Sheet ID is not set.</div>'; return null; }
+  if(!HV.cache[key]){
+    body.innerHTML = '<div class="cc" style="color:#8a94a6">Loading 15-minute history…</div>';
+    try{
+      const r = await gsQuery(id, 'HISTORY15', "select * where A >= datetime '" + hvQ(from) + "' and A < datetime '" + hvQ(to) + "' order by A");
+      if(r.status === 'error') throw new Error((r.errors && r.errors[0] && (r.errors[0].detailed_message || r.errors[0].message)) || 'query error');
+      const lab = [], ser = Array.from({length: 6}, () => [[], [], [], [], []]);
+      (r.table.rows || []).forEach(x => {
+        const c = x.c || [], m = c[0] && typeof c[0].v === 'string' && c[0].v.match(/Date\((\d+),(\d+),(\d+),?(\d*),?(\d*)/); if(!m) return;
+        lab.push(Date.UTC(+m[1], +m[2], +m[3], +m[4] || 0, +m[5] || 0));
+        for(let u = 0; u < 6; u++) for(let k = 0; k < 5; k++){ const v = c[1 + u * 5 + k]; ser[u][k].push(v && v.v !== null && v.v !== undefined ? +v.v : null); }
+      });
+      HV.cache[key] = {lab, ser};
+    }catch(e){
+      body.innerHTML = '<div class="cc" style="color:#d63031">Could not load 15-minute history: ' + e.message + '<br><span class="cs">The HISTORY15 tab is created by the updated Apps Script after the next Excel push. Run backfillHistory15 once to load earlier months.</span></div>';
+      return null;
+    }
+  }
+  return HV.cache[key];
+}
+
+async function hvTrend(body, from, to){
+  const d = await hvLoad15(body, from, to); if(!d || HV.view !== 'trend') return;
+  const p = HV.trend.p, u = HV.trend.unit;
+  if(!d.lab.length){ body.innerHTML = '<div class="cc" style="color:#8a94a6;font-style:italic">No 15-minute data in this range yet.</div>'; return; }
+  const P = [['load', 'Load (MW)', '#2563eb', 'yL'], ['coal', 'Coal (T/hr)', '#0891b2', 'yL'], ['sox', 'SOx (mg/Nm³)', '#dc2626', 'yE'], ['pm', 'PM (mg/Nm³)', '#d97706', 'yE'], ['nox', 'NOx (mg/Nm³)', '#7c3aed', 'yE']];
+  body.innerHTML = `<div class="tp-bar"><span class="tp-lbl">Unit</span><select id="hv-tu" onchange="HV.trend.unit=+this.value;renderHistory()" style="padding:7px 12px;border-radius:8px;border:1px solid #d6def0;font:500 13px var(--sans)">${[0, 1, 2, 3, 4, 5].map(i => '<option value="' + i + '"' + (i === u ? ' selected' : '') + '>Unit ' + (i + 1) + '</option>').join('')}</select>
+      <span class="tp-sep"></span><span class="tp-lbl">Show</span>${P.map(([k, n, c]) => `<button class="tp-chip ${p[k] ? 'on' : ''}" style="--c:${c}" onclick="HV.trend.p.${k}=!HV.trend.p.${k};renderHistory()"><i></i>${n.split(' (')[0]}</button>`).join('')}
+      <button class="tp-chip ${p.lim ? 'on' : ''}" style="--c:#475569" onclick="HV.trend.p.lim=!HV.trend.p.lim;renderHistory()"><i></i>Limit lines</button></div>
+    <div class="cc"><div class="ct" style="margin-bottom:8px">Unit ${u + 1} — 15-min trend · ${hvFmt(d.lab[0])} → ${hvFmt(d.lab[d.lab.length - 1])} <span class="cs">(${d.lab.length} readings)</span></div>
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap"><button class="btn" onclick="hvZoomBtn('in')">🔍＋ Zoom in</button><button class="btn" onclick="hvZoomBtn('out')">🔍－ Zoom out</button><button class="btn" onclick="hvZoomBtn('left')">◀</button><button class="btn" onclick="hvZoomBtn('right')">▶</button><button class="btn" onclick="hvZoomBtn('reset')">↺ Reset</button>
+        <span class="cs" id="hv-zl"></span><span class="cs" style="margin-left:auto">Drag on the graph to zoom into that area · mouse wheel to zoom · double-click to reset</span></div>
+      <div style="position:relative;height:400px"><canvas id="hvC"></canvas></div></div>
+    <div class="cc"><div class="ct" style="margin-bottom:8px">Statistics for the range</div><table class="tbl" id="hvStat"></table></div>`;
+  const multi = d.lab[d.lab.length - 1] - d.lab[0] > 86400000, labels = d.lab.map(t => { const x = new Date(t), q = n => String(n).padStart(2, '0'); return (multi ? q(x.getUTCDate()) + '/' + q(x.getUTCMonth() + 1) + ' ' : '') + q(x.getUTCHours()) + ':' + q(x.getUTCMinutes()); });
+  const lims = {sox: SOX_LIM[u], pm: ALT_LIM.pm[u], nox: NOX_LIM[u]}, keys = P.filter(x => p[x[0]]);
+  const ds = keys.map(([k, n, c, ax]) => ({label: n, data: d.ser[u][P.findIndex(y => y[0] === k)], borderColor: c, backgroundColor: c, yAxisID: ax, tension: 0.2, pointRadius: 0, pointHoverRadius: 4, borderWidth: 1.6, spanGaps: true}));
+  if(p.lim) keys.filter(x => lims[x[0]]).forEach(([k, n, c]) => ds.push({label: 'Limit ' + lims[k] + ' (' + k.toUpperCase() + ')', data: Array(labels.length).fill(lims[k]), borderColor: c, borderDash: [6, 5], borderWidth: 1.2, pointRadius: 0, fill: false, yAxisID: 'yE'}));
+  const useL = keys.some(x => x[3] === 'yL'), useE = keys.some(x => x[3] === 'yE'), o = proOpts(null);
+  const ax = (pos, show, title) => ({display: show, position: pos, beginAtZero: true, grid: {color: 'rgba(100,116,139,.12)', drawOnChartArea: pos === 'left' || !useL}, border: {display: false}, ticks: {color: '#64748b', font: {size: 11}}, title: {display: show, text: title, color: '#64748b', font: {size: 11}}});
+  o.scales = {x: o.scales.x, yL: ax('left', useL, 'Load (MW) / Coal (T/hr)'), yE: ax('right', useE, 'SOx / PM / NOx (mg/Nm³)')};
+  o.plugins.tooltip.filter = it => !String(it.dataset.label).startsWith('Limit');
+  HV.zkey = from + '|' + to; HV.curLab = d.lab;
+  if(HV.zoom && HV.zoom.key === HV.zkey){ o.scales.x.min = HV.zoom.min; o.scales.x.max = HV.zoom.max; }
+  CH.hvC = new Chart(document.getElementById('hvC'), {type: 'line', data: {labels, datasets: ds}, options: o});
+  hvZoomInit(CH.hvC); hvZoomLabel(CH.hvC);
+  document.getElementById('hvStat').innerHTML = '<tr><th>Parameter</th><th>Min</th><th>Avg</th><th>Max</th><th>Readings</th></tr>' + P.map(([k, n, c]) => {
+    const v = d.ser[u][P.findIndex(y => y[0] === k)].filter(x => x !== null);
+    return v.length ? `<tr><td style="color:${c};font-weight:600">${n}</td><td>${Math.min(...v).toFixed(1)}</td><td>${(v.reduce((x, y) => x + y, 0) / v.length).toFixed(1)}</td><td>${Math.max(...v).toFixed(1)}</td><td>${v.length}</td></tr>`
+      : `<tr><td style="color:${c};font-weight:600">${n}</td><td colspan="4" style="color:#8a94a6;font-style:italic">N/A</td></tr>`; }).join('');
+}
+
+// ── Zoom for the 15-min trend graph (no extra library needed) ──
+function hvZoomLabel(ch){
+  const el = document.getElementById('hv-zl'); if(!el) return;
+  const n = ch.data.labels.length, x = ch.options.scales.x, a = x.min !== undefined ? x.min : 0, b = x.max !== undefined ? x.max : n - 1;
+  el.textContent = (a <= 0 && b >= n - 1) ? 'Showing the full range' : 'Zoomed: ' + hvFmt(HV.curLab[Math.max(0, a)]) + ' → ' + hvFmt(HV.curLab[Math.min(n - 1, b)]) + ' (' + (b - a + 1) + ' readings)';
+}
+
+function hvZoomApply(ch, min, max){
+  const n = ch.data.labels.length, x = ch.options.scales.x;
+  min = Math.max(0, Math.round(min)); max = Math.min(n - 1, Math.round(max));
+  if(max - min < 8){ min = Math.max(0, Math.min(min, n - 9)); max = Math.min(n - 1, min + 8); }          // never zoom closer than 9 readings
+  if(min <= 0 && max >= n - 1){ delete x.min; delete x.max; HV.zoom = null; }
+  else { x.min = min; x.max = max; HV.zoom = {key: HV.zkey, min, max}; }
+  ch.update('none'); hvZoomLabel(ch);
+}
+
+function hvZoomBtn(k){
+  const ch = CH.hvC; if(!ch) return;
+  const n = ch.data.labels.length, x = ch.options.scales.x, a = x.min !== undefined ? x.min : 0, b = x.max !== undefined ? x.max : n - 1, w = b - a, mid = (a + b) / 2;
+  if(k === 'in') hvZoomApply(ch, mid - w * 0.25, mid + w * 0.25);
+  else if(k === 'out') hvZoomApply(ch, mid - w, mid + w);
+  else if(k === 'reset') hvZoomApply(ch, 0, n - 1);
+  else {                                                                                                  // pan left / right by half a screen
+    let na = a + (k === 'left' ? -w / 2 : w / 2), nb = b + (k === 'left' ? -w / 2 : w / 2);
+    if(na < 0){ nb -= na; na = 0; } if(nb > n - 1){ na -= nb - (n - 1); nb = n - 1; }
+    hvZoomApply(ch, na, nb);
+  }
+}
+
+function hvZoomInit(ch){
+  const cv = ch.canvas, wrap = cv.parentNode; let box = wrap.querySelector('.hv-zbox');
+  if(!box){ box = document.createElement('div'); box.className = 'hv-zbox'; wrap.appendChild(box); }
+  let x0 = null;
+  cv.style.cursor = 'crosshair'; cv.style.touchAction = 'pan-y';
+  cv.onpointerdown = e => { x0 = e.clientX - cv.getBoundingClientRect().left; box.style.display = 'block'; box.style.left = x0 + 'px'; box.style.width = '0px'; cv.setPointerCapture(e.pointerId); };
+  cv.onpointermove = e => { if(x0 === null) return; const r = cv.getBoundingClientRect(), x = Math.max(0, Math.min(r.width, e.clientX - r.left)); box.style.left = Math.min(x0, x) + 'px'; box.style.width = Math.abs(x - x0) + 'px'; };
+  cv.onpointerup = e => {
+    if(x0 === null) return;
+    const r = cv.getBoundingClientRect(), x = Math.max(0, Math.min(r.width, e.clientX - r.left)), a = Math.min(x0, x), b = Math.max(x0, x);
+    x0 = null; box.style.display = 'none';
+    if(b - a > 10) hvZoomApply(ch, ch.scales.x.getValueForPixel(a), ch.scales.x.getValueForPixel(b));
+  };
+  cv.onwheel = e => {
+    e.preventDefault();
+    const sx = ch.scales.x, c = sx.getValueForPixel(e.clientX - cv.getBoundingClientRect().left), f = e.deltaY < 0 ? 0.7 : 1.4;
+    hvZoomApply(ch, c - (c - sx.min) * f, c + (sx.max - c) * f);
+  };
+  cv.ondblclick = () => hvZoomApply(ch, 0, ch.data.labels.length - 1);
+}
 </script>
 
 </body>
